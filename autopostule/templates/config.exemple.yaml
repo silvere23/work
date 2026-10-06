@@ -39,6 +39,7 @@ recherche:
   departements: []          # ex : ["92", "93"] - plus précis que la région
   villes: []                # ex : ["Lille", "Roubaix"] - filtre sur la commune du siège
   effectif_min: 10          # ignore les toutes petites structures (0 = pas de filtre)
+  effectif_max: 249         # PME uniquement : les grands groupes publient rarement une adresse RH (0 = pas de limite)
   naf_supplementaires: []   # codes NAF à ajouter, ex : ["70.22Z"]
   limite: 200               # nombre max d'entreprises récupérées par recherche
 

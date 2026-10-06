@@ -36,6 +36,7 @@ pouvez n'indiquer que ce que vous changez. Les chemins relatifs sont résolus pa
 | `departements`         | `[]`                         | ex. `["59", "62"]` ; prioritaire sur `regions` |
 | `villes`               | `[]`                         | filtre sur la commune du siège                 |
 | `effectif_min`         | `10`                         | 0 = toutes tailles                             |
+| `effectif_max`         | `249`                        | PME uniquement (les grands groupes publient rarement une adresse RH) ; 0 = pas de limite ; option `--effectif-max` |
 | `naf_supplementaires`  | `[]`                         | codes NAF ajoutés à ceux du métier             |
 | `limite`               | `200`                        | entreprises max par métier et par recherche    |
 

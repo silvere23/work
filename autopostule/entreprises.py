@@ -28,6 +28,7 @@ class CriteresRecherche:
     departements: list[str] = field(default_factory=list)  # ex : ["59", "62"]
     villes: list[str] = field(default_factory=list)        # filtre local sur la commune
     effectif_min: int = 0
+    effectif_max: int = 0   # 0 = pas de limite ; ex. 249 pour cibler les PME
     naf_supplementaires: list[str] = field(default_factory=list)
     limite: int = 200
 
@@ -42,8 +43,8 @@ class CriteresRecherche:
             params["departement"] = ",".join(self.departements)
         elif self.regions:
             params["region"] = ",".join(self.regions)
-        if self.effectif_min > 0:
-            params["tranche_effectif_salarie"] = ",".join(tranches_a_partir_de(self.effectif_min))
+        if self.effectif_min > 0 or self.effectif_max > 0:
+            params["tranche_effectif_salarie"] = ",".join(tranches_a_partir_de(self.effectif_min, self.effectif_max))
         return params
 
 

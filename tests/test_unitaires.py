@@ -37,6 +37,10 @@ def test_trouver_metier(valeur, cle):
     assert trouver_metier(valeur).cle == cle
 
 
+def test_tranches_pme():
+    assert tranches_a_partir_de(10, 249) == ["11", "12", "21", "22", "31"]
+
+
 def test_tranches():
     assert tranches_a_partir_de(10)[0] == "11"
     assert "03" not in tranches_a_partir_de(10)
@@ -132,6 +136,8 @@ def test_parametres_api():
     p = c.parametres()
     assert "62.01Z" in p["activite_principale"] and p["region"] == "32"
     assert p["tranche_effectif_salarie"].startswith("11")
+    pme = CriteresRecherche(metier=trouver_metier("devops"), regions=["32"], effectif_min=10, effectif_max=249)
+    assert pme.parametres()["tranche_effectif_salarie"] == "11,12,21,22,31"
     c2 = CriteresRecherche(metier=trouver_metier("devops"), regions=["32"], departements=["59"])
     assert "region" not in c2.parametres() and c2.parametres()["departement"] == "59"
 

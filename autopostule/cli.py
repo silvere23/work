@@ -131,7 +131,7 @@ def cmd_cv(args) -> int:
 
 
 def rechercher(config, base: Base, metiers: list[str], regions: list[str], departements: list[str],
-               villes: list[str], limite: int, effectif_min: int) -> int:
+               villes: list[str], limite: int, effectif_min: int, effectif_max: int = 0) -> int:
     client = ClientRechercheEntreprises()
     nouvelles = 0
     codes_regions = [trouver_region(r).code for r in regions]
@@ -139,7 +139,7 @@ def rechercher(config, base: Base, metiers: list[str], regions: list[str], depar
         metier = trouver_metier(cle)
         criteres = CriteresRecherche(
             metier=metier, regions=codes_regions, departements=departements, villes=villes,
-            effectif_min=effectif_min, limite=limite,
+            effectif_min=effectif_min, effectif_max=effectif_max, limite=limite,
             naf_supplementaires=_liste(config["recherche"].get("naf_supplementaires")),
         )
         print(f"Recherche « {metier.titre} » (NAF {', '.join(criteres.parametres()['activite_principale'].split(','))})")
@@ -165,6 +165,7 @@ def cmd_rechercher(args) -> int:
         villes=_liste(args.ville) or _liste(r.get("villes")),
         limite=args.limite or int(r.get("limite") or 200),
         effectif_min=args.effectif_min if args.effectif_min is not None else int(r.get("effectif_min") or 0),
+        effectif_max=args.effectif_max if args.effectif_max is not None else int(r.get("effectif_max") or 0),
     )
     return 0
 
@@ -550,6 +551,7 @@ def cmd_auto(args) -> int:
             villes=_liste(args.ville) or _liste(r.get("villes")),
             limite=args.limite or int(r.get("limite") or 200),
             effectif_min=int(r.get("effectif_min") or 0),
+            effectif_max=int(r.get("effectif_max") or 0),
         )
         print("\n=== Candidatures spontanées : adresses e-mail ===")
         scanner(config, base, args.limite)
@@ -608,6 +610,8 @@ def construire_parseur() -> argparse.ArgumentParser:
     s = sous.add_parser("rechercher", help="trouve des entreprises par métier et zone géographique")
     filtres(s)
     s.add_argument("--effectif-min", type=int, help="effectif minimum (ex : 10)")
+    s.add_argument("--effectif-max", type=int,
+                   help="effectif maximum (ex : 249 pour les PME, qui publient plus souvent une adresse RH)")
     s.set_defaults(func=cmd_rechercher)
 
     s = sous.add_parser("importer", help="importe des entreprises depuis un CSV (nom, site, email, ...)")

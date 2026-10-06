@@ -149,9 +149,10 @@ TRANCHES_EFFECTIF = {
 }
 
 
-def tranches_a_partir_de(effectif_min: int) -> list[str]:
-    """Codes de tranches dont la borne basse est >= effectif_min."""
-    return [code for code, (borne, _) in TRANCHES_EFFECTIF.items() if borne >= effectif_min]
+def tranches_a_partir_de(effectif_min: int, effectif_max: int = 0) -> list[str]:
+    """Codes de tranches dont la borne basse est >= effectif_min (et <= effectif_max si > 0)."""
+    return [code for code, (borne, _) in TRANCHES_EFFECTIF.items()
+            if borne >= effectif_min and (effectif_max <= 0 or borne <= effectif_max)]
 
 
 def borne_effectif(code: str | None) -> int | None:

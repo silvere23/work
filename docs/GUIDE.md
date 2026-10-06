@@ -305,6 +305,7 @@ autopostule rechercher -m technicien -r hauts-de-france -v Lille -v Roubaix -v T
 | `-v / --ville`      | `Lille`             | commune du siège social                                   |
 | `-n / --limite`     | `100`               | nombre maximum d'entreprises par métier                   |
 | `--effectif-min`    | `10`                | ignore les structures plus petites                        |
+| `--effectif-max`    | `249`               | ignore les plus grandes (défaut 249 : les PME publient bien plus souvent une adresse RH que les grands groupes, qui passent par leur site carrière) |
 
 Sans option, les valeurs de la section `recherche` de `config.yaml` sont utilisées.
 
