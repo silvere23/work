@@ -8,16 +8,21 @@ import hashlib
 import shutil
 import sys
 import textwrap
+import webbrowser
 from pathlib import Path
 
+import os
+
 from . import __version__
-from .config import EXEMPLE, ErreurConfig, charger
+from . import cv_adapte
+from . import offres as mod_offres
+from .candidature import Atelier
+from .config import EXEMPLE, ErreurConfig, charger, contrats_vises
 from .cv import AnalyseCV, analyser_fichier
 from .emails import classer
 from .entreprises import ClientRechercheEntreprises, CriteresRecherche
-from .envoi import envoyer_candidatures, nom_fichier
-from .lettre import GenerateurLettres, ecrire_pdf
-from .referentiel import METIERS, REGIONS, trouver_metier, trouver_region
+from .envoi import envoyer_candidatures
+from .referentiel import CONTRATS, METIERS, REGIONS, contrats_valides, libelle_contrats, trouver_metier, trouver_region
 from .sites import Prospecteur, mx_valide
 from .stockage import Base
 from .web import Navigateur
@@ -28,6 +33,13 @@ ENV_EXEMPLE = """# Secrets - ne versionnez jamais ce fichier
 AUTOPOSTULE_SMTP_PASSWORD=
 # Facultatif, pour lettre.moteur: "ia" (https://console.anthropic.com/)
 ANTHROPIC_API_KEY=
+# Offres d'emploi France Travail (gratuit) : https://francetravail.io -> créer une application,
+# API « Offres d'emploi v2 »
+FRANCE_TRAVAIL_CLIENT_ID=
+FRANCE_TRAVAIL_CLIENT_SECRET=
+# Offres d'emploi Adzuna (gratuit) : https://developer.adzuna.com
+ADZUNA_APP_ID=
+ADZUNA_APP_KEY=
 """
 
 
@@ -47,6 +59,13 @@ def _analyse_cv(config, obligatoire: bool = False) -> AnalyseCV | None:
             raise
         print(f"(CV non trouvé : {config.fichier_cv} - lettres générées sans les compétences du CV)")
         return None
+
+
+def _appliquer_contrats(config, args) -> list[str]:
+    """L'option -t/--contrat remplace recherche.types_contrat pour cette exécution."""
+    if getattr(args, "contrat", None):
+        config["recherche"]["types_contrat"] = contrats_valides(_liste(args.contrat))
+    return contrats_vises(config)
 
 
 def _liste(valeurs) -> list[str]:
@@ -226,43 +245,208 @@ def cmd_scanner(args) -> int:
 
 def generer(config, base: Base, metier: str | None = None, moteur: str | None = None,
             limite: int | None = None) -> int:
-    analyse = _analyse_cv(config)
-    generateur = GenerateurLettres(config, analyse)
-    dossier = config.dossier_donnees / "lettres"
+    atelier = Atelier(config, base)
     n = 0
     for e in base.entreprises_sans_candidature(trouver_metier(metier).cle if metier else None):
         if limite and n >= limite:
             break
-        meilleur = base.meilleur_email(e["siren"])
-        if not meilleur or base.est_exclu(meilleur["email"], e["siren"]):
+        resultat = atelier.preparer_spontanee(dict(e), moteur)
+        if resultat.statut != "preparee":
             continue
-        entreprise = dict(e)
-        lettre = generer_une(generateur, entreprise, e["metier"] or _liste(config["recherche"]["metiers"])[0],
-                             moteur)
-        pdf = None
-        if config["lettre"].get("joindre_pdf", True):
-            nom_pdf = (f"Lettre_motivation_{nom_fichier(config.profil['nom'])}_"
-                       f"{nom_fichier(entreprise['nom'])[:40]}.pdf")
-            pdf = str(ecrire_pdf(lettre.lettre, dossier / nom_pdf))
-        (dossier / f"{nom_fichier(entreprise['nom'])[:40]}_{e['siren']}.txt").write_text(lettre.lettre, encoding="utf-8")
-        id_ = base.ajouter_candidature({
-            "siren": e["siren"], "email": meilleur["email"], "metier": e["metier"], "objet": lettre.objet,
-            "corps": lettre.message, "lettre": lettre.lettre, "lettre_pdf": pdf, "moteur": lettre.moteur,
-        })
         n += 1
-        print(f"  #{id_:<5} {entreprise['nom'][:45]:<45} <{meilleur['email']}> [{lettre.moteur}]")
-    print(f"{n} candidatures préparées (statut « brouillon »).")
+        print(f"  #{resultat.candidature_id:<5} {e['nom'][:45]:<45} <{resultat.email}>")
+    contrats = libelle_contrats(atelier.contrats)
+    print(f"{n} candidatures spontanées préparées{f' ({contrats})' if contrats else ''} (statut « brouillon »).")
     return n
-
-
-def generer_une(generateur: GenerateurLettres, entreprise: dict, metier: str, moteur: str | None):
-    (generateur.config.dossier_donnees / "lettres").mkdir(parents=True, exist_ok=True)
-    return generateur.generer(entreprise, metier, moteur)
 
 
 def cmd_generer(args) -> int:
     config = charger(args.config)
+    _appliquer_contrats(config, args)
     generer(config, _base(config), args.metier, "ia" if args.ia else None, args.limite)
+    return 0
+
+
+def cmd_cv_structure(args) -> int:
+    """Crée cv.yaml (CV structuré) à partir du CV existant, à compléter puis utilisé pour les CV adaptés."""
+    config = charger(args.config)
+    cible = config.fichier_cv_structure
+    if cible.exists() and not args.force:
+        print(f"{cible} existe déjà (--force pour le régénérer).")
+        return 1
+    analyse = _analyse_cv(config)
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    cible.write_text(cv_adapte.modele_depuis_analyse(analyse, config.profil), encoding="utf-8")
+    print(f"Créé : {cible}\nComplétez vos expériences, missions et formations, puis testez avec :\n"
+          f"  autopostule offres voir <ID>   (aperçu du CV adapté à une offre)")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# Offres d'emploi
+# --------------------------------------------------------------------------- #
+
+def _sources(config, choix: list[str] | None = None) -> list:
+    sources = []
+    for nom in choix or _liste(config["offres"].get("sources")):
+        if nom == "france_travail":
+            identifiant, secret = os.environ.get("FRANCE_TRAVAIL_CLIENT_ID"), os.environ.get("FRANCE_TRAVAIL_CLIENT_SECRET")
+            if identifiant and secret:
+                sources.append(mod_offres.SourceFranceTravail(identifiant, secret))
+            else:
+                print("(France Travail ignoré : FRANCE_TRAVAIL_CLIENT_ID / _SECRET absents du fichier .env)")
+        elif nom == "adzuna":
+            identifiant, cle = os.environ.get("ADZUNA_APP_ID"), os.environ.get("ADZUNA_APP_KEY")
+            if identifiant and cle:
+                sources.append(mod_offres.SourceAdzuna(identifiant, cle))
+            else:
+                print("(Adzuna ignoré : ADZUNA_APP_ID / ADZUNA_APP_KEY absents du fichier .env)")
+        else:
+            raise ValueError(f"Source d'offres inconnue : {nom!r} (france_travail, adzuna)")
+    return sources
+
+
+def rechercher_offres(config, base: Base, args) -> int:
+    r, o = config["recherche"], config["offres"]
+    contrats = _appliquer_contrats(config, args)
+    sources = _sources(config, _liste(getattr(args, "source", None)) or None)
+    if not sources:
+        print("Aucune source d'offres configurée : ajoutez vos identifiants dans .env (voir docs/GUIDE.md), "
+              "ou importez des offres avec `autopostule offres ajouter`.")
+        return 0
+    metiers = [trouver_metier(m).cle for m in (_liste(args.metier) or _liste(r.get("metiers")))]
+    departements = _liste(args.departement) or _liste(r.get("departements"))
+    regions = [trouver_region(x).code for x in (_liste(args.region) or ([] if departements else _liste(r.get("regions"))))]
+    jours = args.jours or int(o.get("publiees_depuis_jours") or 7)
+    print(f"Offres publiées depuis {jours} jour(s){f', contrat : {libelle_contrats(contrats)}' if contrats else ''}")
+    trouvees = mod_offres.collecter(sources, metiers, regions, departements,
+                                    _liste(args.ville) or _liste(r.get("villes")), contrats, jours,
+                                    args.limite or int(o.get("limite") or 100))
+    nouvelles = sum(1 for offre in trouvees if base.ajouter_offre({**offre.en_dict(), "cle_doublon": offre.cle_doublon}))
+    print(f"{len(trouvees)} offre(s) pertinente(s), dont {nouvelles} nouvelle(s).")
+    return nouvelles
+
+
+def cmd_offres_rechercher(args) -> int:
+    config = charger(args.config)
+    rechercher_offres(config, _base(config), args)
+    return 0
+
+
+def cmd_offres_ajouter(args) -> int:
+    config = charger(args.config)
+    base = _base(config)
+    if args.url and not args.fichier:
+        offre = mod_offres.offre_depuis_url(args.url)
+    elif args.fichier:
+        texte = Path(args.fichier).read_text(encoding="utf-8", errors="replace")
+        offre = mod_offres.offre_depuis_texte(texte, args.titre or "", args.entreprise or "", args.url or "",
+                                              args.ville or "", args.email or "", args.contrat or "")
+    else:
+        raise ValueError("indiquez --url ou --fichier")
+    for champ in ("titre", "entreprise", "ville", "email"):
+        if getattr(args, champ):
+            setattr(offre, champ, getattr(args, champ))
+    if args.contrat:
+        offre.type_contrat = contrats_valides([args.contrat])[0]
+    # offre choisie par l'utilisateur : on la compare à tous les métiers connus
+    cibles = [trouver_metier(args.metier).cle] if args.metier else list(
+        dict.fromkeys([*_liste(config["recherche"]["metiers"]), *METIERS]))
+    offre.metier = mod_offres.deduire_metier(offre, cibles)[0] or cibles[0]
+    if base.ajouter_offre({**offre.en_dict(), "cle_doublon": offre.cle_doublon}):
+        print(f"Offre ajoutée : {offre.id}  {offre.titre} - {offre.entreprise or '?'} "
+              f"[{offre.type_contrat or 'contrat ?'}] {'<' + offre.email + '>' if offre.email else '(pas d e-mail)'}")
+    else:
+        print("Offre déjà connue.")
+    return 0
+
+
+def preparer_offres(config, base: Base, moteur: str | None = None, limite: int | None = None) -> dict:
+    atelier = Atelier(config, base)
+    s = config["scan"]
+    client = ClientRechercheEntreprises() if config["offres"].get("chercher_email_rh", True) else None
+    prospecteur = Prospecteur(Navigateur(delai=float(s.get("delai_entre_requetes") or 1.5),
+                                         timeout=float(s.get("timeout") or 15)),
+                              tlds=s.get("tlds") or [".fr", ".com"], pages_max=int(s.get("pages_max_par_site") or 8))
+    bilan = {"preparee": 0, "a_postuler_sur_site": 0, "ignoree": 0}
+    for ligne in base.offres("nouvelle", limite):
+        print(f"- {ligne['titre'][:50]:<50} {(ligne['entreprise'] or '?')[:25]:<25}", end=" ... ", flush=True)
+        resultat = atelier.preparer_offre(ligne, moteur, client, prospecteur)
+        bilan[resultat.statut] += 1
+        if resultat.statut == "preparee":
+            print(f"candidature #{resultat.candidature_id} -> {resultat.email}")
+        elif resultat.statut == "a_postuler_sur_site":
+            print(f"pas d'e-mail : dossier prêt, à envoyer sur le site ({ligne['url']})")
+        else:
+            print("ignorée (adresse exclue)")
+    print(f"\n{bilan['preparee']} candidature(s) par e-mail préparée(s), {bilan['a_postuler_sur_site']} dossier(s) "
+          f"à déposer sur le site de l'offre (`autopostule offres lister -s a_postuler_sur_site`).")
+    return bilan
+
+
+def cmd_offres_preparer(args) -> int:
+    config = charger(args.config)
+    _appliquer_contrats(config, args)
+    preparer_offres(config, _base(config), "ia" if args.ia else None, args.limite)
+    return 0
+
+
+def cmd_offres_lister(args) -> int:
+    config = charger(args.config)
+    lignes = _base(config).offres(args.statut)
+    for o in lignes:
+        print(f"{o['id']:<22} {o['statut']:<20} {(o['date_publication'] or '')[:10]:<10} "
+              f"{(o['type_contrat'] or '?'):<10} {o['titre'][:38]:<38} {(o['entreprise'] or '?')[:22]:<22} "
+              f"{(o['ville'] or '')[:15]}")
+    print(f"{len(lignes)} offre(s).")
+    return 0
+
+
+def cmd_offres_voir(args) -> int:
+    config = charger(args.config)
+    base = _base(config)
+    ligne = base.offre(args.id)
+    if not ligne:
+        print(f"Offre {args.id} introuvable.")
+        return 1
+    from .candidature import offre_depuis_ligne
+
+    offre = offre_depuis_ligne(ligne)
+    atelier = Atelier(config, base, journal=lambda *_: None)
+    mots = mod_offres.mots_cles(offre, atelier.competences_cv)
+    connues = {k.lower() for k in atelier.competences_cv}
+    print(f"{offre.titre}\n{offre.entreprise or '?'} - {offre.ville} - {offre.type_contrat or 'contrat ?'} - "
+          f"{offre.salaire or 'salaire non précisé'}\nSource : {offre.source}  {offre.url}\n"
+          f"E-mail : {offre.email or '-'}   Statut : {ligne['statut']}   Dossier : {ligne['dossier'] or '-'}")
+    print(f"\nCompétences demandées que vous avez : {', '.join(m for m in mots if m.lower() in connues) or '-'}")
+    print(f"Compétences demandées absentes du CV : {', '.join(m for m in mots if m.lower() not in connues) or '-'}")
+    print("\n" + (offre.description[:3000] or ""))
+    if args.apercu:
+        dossier = config.dossier_donnees / "apercus"
+        chemin, _ = atelier.cv_pour(mod_offres.titre_propre(offre.titre), mots, offre.texte, dossier, "apercu")
+        print(f"\nAperçu du CV adapté : {chemin or 'cv.yaml absent (autopostule cv-structure)'}")
+    return 0
+
+
+def cmd_offres_ouvrir(args) -> int:
+    config = charger(args.config)
+    ligne = _base(config).offre(args.id)
+    if not ligne:
+        print(f"Offre {args.id} introuvable.")
+        return 1
+    print(f"Dossier de candidature : {ligne['dossier'] or '(préparez-le avec `autopostule offres preparer`)'}")
+    print(f"Lien de l'offre : {ligne['url']}")
+    if ligne["url"]:
+        webbrowser.open(ligne["url"])
+    return 0
+
+
+def cmd_offres_statut(args, statut: str) -> int:
+    config = charger(args.config)
+    base = _base(config)
+    for id_ in args.ids:
+        base.maj_offre(id_, statut=statut)
+    print(f"{len(args.ids)} offre(s) -> {statut}")
     return 0
 
 
@@ -344,31 +528,40 @@ def cmd_stats(args) -> int:
 
 
 def cmd_auto(args) -> int:
-    """Chaîne complète : recherche -> scan -> lettres -> (approbation) -> envoi."""
+    """Chaîne complète : offres récentes + candidatures spontanées -> lettres et CV adaptés -> envoi."""
     config = charger(args.config)
     base = _base(config)
     r = config["recherche"]
-    print("=== 1/4 Recherche des entreprises ===")
-    rechercher(
-        config, base,
-        metiers=_liste(args.metier) or _liste(r.get("metiers")),
-        regions=_liste(args.region) or ([] if args.departement else _liste(r.get("regions"))),
-        departements=_liste(args.departement) or _liste(r.get("departements")),
-        villes=_liste(args.ville) or _liste(r.get("villes")),
-        limite=args.limite or int(r.get("limite") or 200),
-        effectif_min=int(r.get("effectif_min") or 0),
-    )
-    print("\n=== 2/4 Recherche des adresses e-mail ===")
-    scanner(config, base, args.limite)
-    print("\n=== 3/4 Rédaction des lettres ===")
-    generer(config, base, moteur="ia" if args.ia else None)
+    contrats = _appliquer_contrats(config, args)
+    moteur = "ia" if args.ia else None
+    if contrats:
+        print(f"Type(s) de poste : {libelle_contrats(contrats)}")
+    if args.mode in ("tout", "offres"):
+        print("=== Offres d'emploi récentes ===")
+        rechercher_offres(config, base, args)
+        preparer_offres(config, base, moteur)
+    if args.mode in ("tout", "spontanees"):
+        print("\n=== Candidatures spontanées : entreprises ===")
+        rechercher(
+            config, base,
+            metiers=_liste(args.metier) or _liste(r.get("metiers")),
+            regions=_liste(args.region) or ([] if args.departement else _liste(r.get("regions"))),
+            departements=_liste(args.departement) or _liste(r.get("departements")),
+            villes=_liste(args.ville) or _liste(r.get("villes")),
+            limite=args.limite or int(r.get("limite") or 200),
+            effectif_min=int(r.get("effectif_min") or 0),
+        )
+        print("\n=== Candidatures spontanées : adresses e-mail ===")
+        scanner(config, base, args.limite)
+        print("\n=== Candidatures spontanées : lettres et CV ===")
+        generer(config, base, moteur=moteur)
     if config["envoi"].get("validation_manuelle", True) and not args.approuver_tout:
-        print("\n=== 4/4 Envoi ===\nValidation manuelle activée : relisez avec `autopostule lister --statut brouillon`"
+        print("\n=== Envoi ===\nValidation manuelle activée : relisez avec `autopostule lister --statut brouillon`"
               " / `autopostule voir ID`, puis `autopostule approuver --tout` et `autopostule envoyer`.")
         return 0
     if args.approuver_tout:
         base.changer_statut([c["id"] for c in base.candidatures("brouillon")], "approuvee", depuis=("brouillon",))
-    print("\n=== 4/4 Envoi ===")
+    print("\n=== Envoi ===")
     bilan = envoyer_candidatures(config, base, test=args.test)
     print(f"Bilan : {bilan}")
     return 0
@@ -381,7 +574,8 @@ def cmd_auto(args) -> int:
 def construire_parseur() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="autopostule",
-        description="Candidatures spontanées automatisées pour les métiers de l'informatique.",
+        description="Candidatures automatisées (offres récentes et candidatures spontanées) pour les métiers "
+                    "de l'informatique.",
     )
     p.add_argument("--version", action="version", version=f"autopostule {__version__}")
     p.add_argument("-c", "--config", default="config.yaml", help="fichier de configuration (défaut : config.yaml)")
@@ -395,6 +589,14 @@ def construire_parseur() -> argparse.ArgumentParser:
     sous.add_parser("metiers", help="liste les métiers disponibles").set_defaults(func=cmd_metiers)
     sous.add_parser("regions", help="liste les régions et départements").set_defaults(func=cmd_regions)
     sous.add_parser("cv", help="analyse le CV (compétences, coordonnées, métiers adaptés)").set_defaults(func=cmd_cv)
+
+    s = sous.add_parser("cv-structure", help="crée cv.yaml, le CV structuré utilisé pour les CV adaptés")
+    s.add_argument("--force", action="store_true")
+    s.set_defaults(func=cmd_cv_structure)
+
+    def option_contrat(sp):
+        sp.add_argument("-t", "--contrat", action="append",
+                        help=f"type de poste (répétable) : {', '.join(CONTRATS)} - remplace recherche.types_contrat")
 
     def filtres(sp):
         sp.add_argument("-m", "--metier", action="append", help="métier (répétable), ex : devops")
@@ -417,8 +619,9 @@ def construire_parseur() -> argparse.ArgumentParser:
     s.add_argument("-n", "--limite", type=int)
     s.set_defaults(func=cmd_scanner)
 
-    s = sous.add_parser("generer", help="rédige une lettre par entreprise ayant une adresse e-mail")
+    s = sous.add_parser("generer", help="rédige lettre + CV adapté pour chaque entreprise ayant une adresse e-mail")
     s.add_argument("-m", "--metier")
+    option_contrat(s)
     s.add_argument("--ia", action="store_true", help="personnalise avec Claude (ANTHROPIC_API_KEY requise)")
     s.add_argument("-n", "--limite", type=int)
     s.set_defaults(func=cmd_generer)
@@ -453,8 +656,62 @@ def construire_parseur() -> argparse.ArgumentParser:
 
     sous.add_parser("stats", help="statistiques").set_defaults(func=cmd_stats)
 
-    s = sous.add_parser("auto", help="enchaîne recherche, scan, lettres et envoi")
+    # -- offres d'emploi
+    o = sous.add_parser("offres", help="offres d'emploi récentes : rechercher, ajouter, préparer, suivre")
+    so = o.add_subparsers(dest="action", required=True, metavar="ACTION")
+
+    s = so.add_parser("rechercher", help="récupère les offres récentes (France Travail, Adzuna)")
     filtres(s)
+    option_contrat(s)
+    s.add_argument("-j", "--jours", type=int, help="publiées depuis N jours (défaut : offres.publiees_depuis_jours)")
+    s.add_argument("--source", action="append", choices=["france_travail", "adzuna"])
+    s.set_defaults(func=cmd_offres_rechercher)
+
+    s = so.add_parser("ajouter", help="ajoute une offre trouvée ailleurs (LinkedIn, Indeed, site carrière...)")
+    s.add_argument("--url", help="lien de l'offre (lecture automatique si le site l'autorise)")
+    s.add_argument("--fichier", help="fichier texte contenant le texte copié de l'offre")
+    s.add_argument("--titre")
+    s.add_argument("--entreprise")
+    s.add_argument("--ville")
+    s.add_argument("--email", help="adresse de candidature indiquée dans l'offre")
+    s.add_argument("--contrat", help=", ".join(CONTRATS))
+    s.add_argument("-m", "--metier")
+    s.set_defaults(func=cmd_offres_ajouter)
+
+    s = so.add_parser("preparer", help="CV adapté + lettre pour chaque nouvelle offre ; trouve l'e-mail RH")
+    s.add_argument("--ia", action="store_true", help="lettres rédigées par Claude")
+    s.add_argument("-n", "--limite", type=int)
+    option_contrat(s)
+    s.set_defaults(func=cmd_offres_preparer)
+
+    s = so.add_parser("lister", help="liste les offres")
+    s.add_argument("-s", "--statut", choices=["nouvelle", "preparee", "postulee", "a_postuler_sur_site",
+                                              "postulee_sur_site", "ignoree"])
+    s.set_defaults(func=cmd_offres_lister)
+
+    s = so.add_parser("voir", help="détail d'une offre et adéquation avec votre CV")
+    s.add_argument("id")
+    s.add_argument("--apercu", action="store_true", help="génère un aperçu du CV adapté")
+    s.set_defaults(func=cmd_offres_voir)
+
+    s = so.add_parser("ouvrir", help="ouvre l'offre dans le navigateur (candidature sur le site)")
+    s.add_argument("id")
+    s.set_defaults(func=cmd_offres_ouvrir)
+
+    s = so.add_parser("fait", help="marque des offres comme postulées sur le site")
+    s.add_argument("ids", nargs="+")
+    s.set_defaults(func=lambda a: cmd_offres_statut(a, "postulee_sur_site"))
+
+    s = so.add_parser("ignorer", help="écarte des offres")
+    s.add_argument("ids", nargs="+")
+    s.set_defaults(func=lambda a: cmd_offres_statut(a, "ignoree"))
+
+    s = sous.add_parser("auto", help="enchaîne offres récentes, candidatures spontanées, lettres, CV et envoi")
+    filtres(s)
+    option_contrat(s)
+    s.add_argument("--mode", choices=["tout", "offres", "spontanees"], default="tout")
+    s.add_argument("-j", "--jours", type=int)
+    s.add_argument("--source", action="append", choices=["france_travail", "adzuna"])
     s.add_argument("--ia", action="store_true")
     s.add_argument("--test", action="store_true", help="envoi simulé (.eml)")
     s.add_argument("--approuver-tout", action="store_true",

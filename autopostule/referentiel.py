@@ -173,6 +173,8 @@ class Metier:
     missions: tuple[str, ...]
     accroches: tuple[str, ...] = field(default_factory=tuple)
     titre_f: str = ""
+    recherches: tuple[str, ...] = field(default_factory=tuple)   # requêtes envoyées aux sites d'offres
+    intitules: tuple[str, ...] = field(default_factory=tuple)    # mots d'intitulé qui signalent ce métier
 
     def titre_pour(self, genre: str | None) -> str:
         return self.titre_f if (genre or "").upper().startswith("F") and self.titre_f else self.titre
@@ -183,6 +185,8 @@ METIERS: dict[str, Metier] = {
     for m in [
         Metier(
             cle="administrateur_reseau",
+            recherches=("administrateur réseau", "ingénieur réseau", "technicien réseau"),
+            intitules=("reseau", "reseaux", "network", "telecom"),
             titre_f="Administratrice réseau",
             titre="Administrateur réseau",
             naf=("62.02A", "62.02B", "62.03Z", "62.09Z", "61.10Z", "61.20Z", "61.90Z", "63.11Z"),
@@ -207,6 +211,8 @@ METIERS: dict[str, Metier] = {
         ),
         Metier(
             cle="administrateur_systeme",
+            recherches=("administrateur système", "administrateur systèmes et réseaux", "ingénieur système"),
+            intitules=("systeme", "systemes", "sysadmin", "infrastructure", "exploitation"),
             titre_f="Administratrice systèmes",
             titre="Administrateur systèmes",
             naf=("62.02A", "62.02B", "62.03Z", "62.09Z", "63.11Z", "58.29A", "58.29C"),
@@ -232,6 +238,8 @@ METIERS: dict[str, Metier] = {
         ),
         Metier(
             cle="technicien_informatique",
+            recherches=("technicien informatique", "technicien support", "technicien helpdesk"),
+            intitules=("technicien", "support", "helpdesk", "help desk", "proximite", "deploiement"),
             titre_f="Technicienne informatique",
             titre="Technicien informatique",
             naf=("62.02A", "62.02B", "62.03Z", "62.09Z", "95.11Z", "46.51Z"),
@@ -257,6 +265,8 @@ METIERS: dict[str, Metier] = {
         ),
         Metier(
             cle="devops",
+            recherches=("devops", "ingénieur cloud", "SRE"),
+            intitules=("devops", "cloud", "sre", "devsecops", "plateforme"),
             titre_f="Ingénieure DevOps",
             titre="Ingénieur DevOps",
             naf=("62.01Z", "62.02A", "62.03Z", "62.09Z", "63.11Z", "58.29A", "58.29B", "58.29C"),
@@ -281,6 +291,8 @@ METIERS: dict[str, Metier] = {
         ),
         Metier(
             cle="cybersecurite",
+            recherches=("cybersécurité", "analyste SOC", "ingénieur sécurité"),
+            intitules=("securite", "cyber", "soc", "pentest", "rssi"),
             titre_f="Analyste cybersécurité",
             titre="Analyste cybersécurité",
             naf=("62.02A", "62.03Z", "62.09Z", "63.11Z", "58.29A", "80.20Z"),
@@ -303,6 +315,8 @@ METIERS: dict[str, Metier] = {
         ),
         Metier(
             cle="developpeur",
+            recherches=("développeur", "développeur web", "développeur Python"),
+            intitules=("developpeur", "developpeuse", "developer", "dev ", "fullstack", "backend", "frontend"),
             titre_f="Développeuse",
             titre="Développeur",
             naf=("62.01Z", "62.02A", "62.09Z", "58.29B", "58.29C", "63.12Z"),
@@ -365,3 +379,61 @@ def toutes_les_competences() -> list[str]:
         for comp in metier.competences:
             vues.setdefault(normaliser(comp), comp)
     return list(vues.values())
+
+
+# --------------------------------------------------------------------------- #
+# Types de contrat
+# --------------------------------------------------------------------------- #
+
+CONTRATS = {
+    "CDI": "CDI",
+    "CDD": "CDD",
+    "interim": "intérim",
+    "alternance": "alternance",
+    "stage": "stage",
+    "freelance": "freelance",
+}
+
+_ALIAS_CONTRATS = {
+    "cdi": "CDI", "permanent": "CDI", "contrat a duree indeterminee": "CDI",
+    "cdd": "CDD", "contract": "CDD", "contrat a duree determinee": "CDD", "temporary": "CDD",
+    "mis": "interim", "interim": "interim", "travail temporaire": "interim", "mission interimaire": "interim",
+    "alternance": "alternance", "apprentissage": "alternance", "contrat d apprentissage": "alternance",
+    "professionnalisation": "alternance", "contrat de professionnalisation": "alternance", "apprenti": "alternance",
+    "stage": "stage", "stagiaire": "stage", "intern": "stage", "internship": "stage",
+    "lib": "freelance", "freelance": "freelance", "independant": "freelance", "contractor": "freelance",
+    "profession liberale": "freelance", "portage salarial": "freelance",
+}
+
+
+def normaliser_contrat(valeur: str | None) -> str | None:
+    """'cdi', 'Contrat à durée indéterminée', 'permanent' -> 'CDI' ; None si inconnu."""
+    if not valeur:
+        return None
+    cle = normaliser(valeur)
+    if cle in _ALIAS_CONTRATS:
+        return _ALIAS_CONTRATS[cle]
+    for alias, canonique in _ALIAS_CONTRATS.items():
+        if cle.startswith(alias + " ") or f" {alias} " in f" {cle} ":
+            return canonique
+    return None
+
+
+def contrats_valides(valeurs) -> list[str]:
+    """Normalise une liste de types de contrat et lève une erreur claire sur une valeur inconnue."""
+    resultat: list[str] = []
+    for valeur in valeurs or []:
+        canonique = normaliser_contrat(str(valeur))
+        if not canonique:
+            raise ValueError(f"Type de contrat inconnu : {valeur!r}. Valeurs possibles : {', '.join(CONTRATS)}")
+        if canonique not in resultat:
+            resultat.append(canonique)
+    return resultat
+
+
+def libelle_contrats(contrats: list[str]) -> str:
+    """['CDI', 'CDD'] -> 'CDI ou CDD'."""
+    libelles = [CONTRATS.get(c, c) for c in contrats]
+    if len(libelles) <= 1:
+        return "".join(libelles)
+    return ", ".join(libelles[:-1]) + " ou " + libelles[-1]

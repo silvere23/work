@@ -1,7 +1,11 @@
 Madame, Monsieur,
 
 {% if joindre_pdf -%}
-Vivement intéressé{{ e }} par {{ entreprise.nom_court }}, je vous adresse ma candidature spontanée pour un poste de {{ titre | lower }}{% if profil.type_contrat %} en {{ profil.type_contrat }}{% endif %}.
+{% if offre -%}
+Vivement intéressé{{ e }} par votre offre « {{ intitule }} »{% if offre.reference %} (réf. {{ offre.reference }}){% endif %}{% if source_offre %} publiée sur {{ source_offre }}{% endif %}, je vous adresse ma candidature{% if contrat %} pour ce poste en {{ contrat }}{% endif %}.
+{%- else -%}
+Vivement intéressé{{ e }} par {{ entreprise.nom_court }}, je vous adresse ma candidature spontanée pour un poste {{ poste_de }}{% if contrat %} en {{ contrat }}{% endif %}.
+{%- endif %}
 
 {{ resume }}
 

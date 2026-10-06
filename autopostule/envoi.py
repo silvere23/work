@@ -85,9 +85,10 @@ class Expediteur:
 
 
 def envoyer_candidatures(config, base: Base, test: bool = False, maximum: int | None = None,
-                         journal: Callable[[str], None] = print, attendre: Callable[[float], None] = time.sleep) -> dict:
+                         journal: Callable[[str], None] = print, attendre: Callable[[float], None] | None = None) -> dict:
     """Envoie les candidatures prêtes. Retourne un bilan {envoyees, echecs, ignorees, restantes}."""
     e = config["envoi"]
+    attendre = attendre or time.sleep
     statuts = ("approuvee",) if e.get("validation_manuelle", True) else ("approuvee", "brouillon")
     a_envoyer = [c for s in statuts for c in base.candidatures(s)]
     quota = int(e.get("max_par_jour") or 40) - (0 if test else base.envois_aujourdhui())
@@ -111,13 +112,18 @@ def envoyer_candidatures(config, base: Base, test: bool = False, maximum: int | 
             if bilan["envoyees"] >= quota:
                 bilan["restantes"] += 1
                 continue
-            if base.est_exclu(c["email"], c["siren"]) or (not test and base.deja_contacte(c["email"], c["siren"], jours)):
+            if c["offre_id"]:
+                deja = base.deja_postule_offre(c["offre_id"])  # réponse à une offre : une fois par offre
+            else:
+                deja = base.deja_contacte(c["email"], c["siren"], jours)
+            if base.est_exclu(c["email"], c["siren"]) or (not test and deja):
                 base.changer_statut([c["id"]], "ignoree")
                 bilan["ignorees"] += 1
                 journal(f"  - ignorée (exclue ou déjà contactée) : {c['entreprise']} <{c['email']}>")
                 continue
 
-            pieces = [_copie_nommee(cv, nom_cv, config)]
+            cv_adapte = Path(c["cv_pdf"]) if c["cv_pdf"] else None
+            pieces = [cv_adapte if cv_adapte and cv_adapte.exists() else _copie_nommee(cv, nom_cv, config)]
             if c["lettre_pdf"] and Path(c["lettre_pdf"]).exists():
                 pieces.append(Path(c["lettre_pdf"]))
             msg = construire_message(config, c["email"], c["objet"], c["corps"], pieces)
@@ -145,6 +151,8 @@ def envoyer_candidatures(config, base: Base, test: bool = False, maximum: int | 
                 journal(f"  ✓ [TEST] {c['entreprise']} <{c['email']}> -> {identifiant}")
             else:
                 base.marquer_envoyee(c["id"], identifiant)
+                if c["offre_id"]:
+                    base.maj_offre(c["offre_id"], statut="postulee")
                 journal(f"  ✓ envoyée : {c['entreprise']} <{c['email']}>")
             bilan["envoyees"] += 1
     return bilan

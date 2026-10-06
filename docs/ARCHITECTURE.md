@@ -5,6 +5,11 @@
 ```
 autopostule/
 ├── cli.py            # commandes (argparse) et enchaînement des étapes
+├── candidature.py    # préparation d'une candidature (offre ou spontanée) : e-mail, CV adapté, lettre
+├── offres.py         # sources d'offres (France Travail, Adzuna, URL, texte), filtres, mots-clés, métier
+├── cv_adapte.py      # CV structuré (cv.yaml) -> CV PDF adapté à une offre
+├── ia.py             # appel à Claude (lettres, accroche du CV)
+├── pdfutil.py        # mise en page PDF commune (polices Unicode, translittération)
 ├── config.py         # lecture de config.yaml + .env, valeurs par défaut
 ├── referentiel.py    # régions, départements, métiers, codes NAF, tranches d'effectif
 ├── cv.py             # extraction du texte du CV, coordonnées, compétences, adéquation métier
@@ -17,11 +22,26 @@ autopostule/
 ├── stockage.py       # base SQLite (entreprises, e-mails, candidatures, exclusions)
 └── templates/
     ├── config.exemple.yaml
+    ├── cv.exemple.yaml
     ├── lettre.txt.j2
     └── mail.txt.j2
 ```
 
 ## Flux de données
+
+Offres :
+
+```
+offres rechercher ──► offres (statut = nouvelle)            [France Travail, Adzuna]
+offres ajouter    ──► offres (statut = nouvelle)            [URL JobPosting / texte]
+offres preparer   ──► e-mail de l'offre, ou SIRENE (par_nom) + scan du site → adresse RH
+                  ──► donnees/offres/<id>/ : CV adapté, lettre, message, offre.txt
+                  ──► candidature (brouillon, offre_id, cv_pdf) + offre = preparee
+                      ou offre = a_postuler_sur_site
+envoyer           ──► candidature = envoyee, offre = postulee
+```
+
+Candidatures spontanées :
 
 ```
 rechercher ──► entreprises (statut_scan = a_scanner)
@@ -42,6 +62,10 @@ lancer `rechercher` plusieurs fois avec d'autres régions, `scanner -n 20` par l
 | `emails`       | `(siren, email)`    | type (`rh`, `generique`, `nominatif`, `autre`), score, page source    |
 | `candidatures` | `id`                | e-mail, objet, corps du message, lettre, chemin du PDF, moteur, statut, erreur, dates, Message-ID |
 | `exclusions`   | `valeur`            | e-mail, domaine ou SIREN à ne jamais contacter                        |
+| `offres`       | `id`                | source, intitulé, entreprise, description, URL, e-mail, lieu, contrat, date, salaire, compétences, référence, métier, clé de doublon, SIREN, statut, dossier |
+
+`candidatures` porte aussi `offre_id` (vide pour une candidature spontanée) et `cv_pdf` (CV adapté joint).
+Les colonnes ajoutées en v0.2 sont créées automatiquement sur une base existante (`Base._migrer`).
 
 La base s'ouvre avec n'importe quel outil SQLite (DB Browser for SQLite, `sqlite3`…) pour des exports :
 
@@ -78,11 +102,36 @@ personnes publiques, associations) et ville.
 `web.Navigateur` garantit le respect de `robots.txt`, un délai minimal par hôte, un timeout et une taille
 maximale de page (2 Mo), et n'accepte que du HTML/texte.
 
+## Offres d'emploi
+
+- `SourceFranceTravail` : jeton OAuth2 (`client_credentials`, portée `api_offresdemploiv2 o2dsoffre`), puis
+  `GET /offres/search` avec `motsCles`, `region` ou `departement`, `typeContrat` (CDI, CDD, MIS, LIB),
+  `publieeDepuis` (1, 3, 7, 14 ou 31), `sort=1`, pagination par `range` de 150.
+- `SourceAdzuna` : `GET /v1/api/jobs/fr/search/{page}` avec `what`, `where`, `max_days_old`, `sort_by=date`,
+  `permanent=1` / `contract=1`.
+- `offre_depuis_url` : respecte `robots.txt`, lit le bloc schema.org `JobPosting` (JSON-LD) ou, à défaut, le
+  titre et le texte de la page ; `offre_depuis_texte` pour un copier-coller.
+- `collecter` : une requête par métier (`Metier.recherches`) et par zone, puis filtres `est_pertinente`
+  (intitulé ou au moins 3 compétences du métier), `contrat_accepte`, ville, et dédoublonnage (`id` +
+  `cle_doublon` = intitulé nettoyé + entreprise + ville).
+- `mots_cles` : compétences du référentiel et du CV citées par l'offre, classées par fréquence (bonus si
+  présentes dans l'intitulé). Elles pilotent le CV adapté et la lettre.
+
+## CV adapté
+
+`cv_adapte.adapter` copie le CV structuré puis : titre = intitulé visé ; compétences triées (demandées
+d'abord, dans l'ordre d'importance de l'offre) et catégories triées par nombre de compétences demandées ;
+missions de chaque expérience triées par nombre de mots-clés (ordre des expériences inchangé) ; ligne
+« Atouts pour ce poste » ou accroche réécrite par Claude (`accroche_ia`, consigne de ne rien inventer).
+`manquantes` liste les compétences demandées absentes du CV. `ecrire_pdf` met en page (fpdf2, gras
+markdown pour les compétences demandées).
+
 ## Rédaction
 
-`lettre.GenerateurLettres.paragraphes` assemble : accroche (variante du métier), parcours (expérience,
-missions, compétences du CV filtrées par métier), paragraphe entreprise (secteur NAF × taille × proximité),
-paragraphe personnel, conclusion. Le choix des variantes dépend d'un hachage `SIREN + métier` : stable pour
+`lettre.GenerateurLettres.paragraphes` assemble : accroche (variante du métier, ou réponse à l'offre),
+parcours (expérience, **réalisations tirées du CV structuré** les plus proches de l'offre, compétences
+demandées par l'offre et présentes dans le CV, à défaut compétences du métier), paragraphe entreprise (secteur NAF × taille × proximité),
+paragraphe personnel, conclusion (disponibilité, type de contrat). Le choix des variantes dépend d'un hachage `SIREN + métier` : stable pour
 une entreprise, varié entre entreprises. `accorder` résout la syntaxe `[masculin|féminin|inclusif]`.
 
 En mode IA, `corps_ia` envoie à Claude (SDK `anthropic`, `client.beta.messages.create`) le CV, le profil,
@@ -108,13 +157,18 @@ arrêt immédiat ; 3 erreurs consécutives → arrêt.
 | nouvelles compétences        | `Metier.competences` (elles sont aussi détectées dans le CV)           |
 | autre secteur d'activité     | `recherche.naf_supplementaires` ou `Metier.naf` ; libellé dans `SECTEURS_NAF` |
 | autre source d'entreprises   | produire des dicts au format de `entreprises.convertir` puis `Base.ajouter_entreprise` |
-| offres d'emploi France Travail | API officielle « Offres d'emploi » (inscription gratuite sur francetravail.io) : piste d'évolution |
+| nouvelle source d'offres     | classe avec `nom` et `rechercher(requete, zones, contrats, jours, limite)` produisant des `Offre`, branchée dans `cli._sources` |
 | autre style de lettre        | `lettre.dossier_modeles` (modèles Jinja2 personnels)                    |
 
 ## Tests
 
 `tests/test_unitaires.py` couvre le référentiel, l'analyse du CV, l'extraction et le classement des adresses,
 la conversion des résultats SIRENE, la vérification des sites, les accords et la génération des lettres et PDF.
+`tests/test_offres.py` couvre les contrats, la conversion des offres (France Travail, Adzuna, JobPosting),
+les mots-clés, le CV adapté, les lettres sur offre et la migration de la base.
+`tests/test_offres_integration.py` déroule le parcours « offres » complet via la CLI contre de fausses API
+France Travail, Adzuna et SIRENE et un faux SMTP (paramètres envoyés, filtres, doublons, adresse RH, dossier
+à déposer, CV adapté joint, statuts).
 `tests/test_integration.py` déroule le pipeline complet contre un faux site web et une fausse API locale
 (robots.txt, liens externes ignorés), un faux SMTP (plafond, exclusions, pas de doublon) et un faux serveur
 Claude (forme exacte de la requête).

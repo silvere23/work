@@ -97,6 +97,21 @@ class ClientRechercheEntreprises:
         reponse.raise_for_status()
         return {}
 
+    def par_nom(self, nom: str, departement: str = "") -> dict | None:
+        """Retrouve une entreprise à partir du nom affiché dans une offre (et du département si connu)."""
+        cible = {m for m in normaliser(nom).split() if m not in {"sas", "sarl", "sa", "groupe", "france"}}
+        if not cible:
+            return None
+        params = {"q": nom, "per_page": "5", "etat_administratif": "A"}
+        if departement:
+            params["departement"] = departement
+        for brut in (self._page(params, 1).get("results") or []):
+            candidat = convertir(brut, "")
+            mots = set(normaliser(candidat["nom"]).replace("(", " ").replace(")", " ").split())
+            if cible <= mots:
+                return candidat
+        return None
+
     def rechercher(self, criteres: CriteresRecherche) -> Iterator[dict]:
         params = criteres.parametres()
         trouvees = 0

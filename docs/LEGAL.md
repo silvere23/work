@@ -19,8 +19,14 @@ services utilisés, et à préserver votre réputation auprès des recruteurs et
   activez-les en connaissance de cause.
 - **Respect des sites** : `robots.txt` est respecté, les requêtes sont espacées, le nombre de pages par site
   est limité.
-- **Plateformes exclues** : LinkedIn, Indeed, Welcome to the Jungle, etc. interdisent l'extraction
-  automatisée dans leurs conditions d'utilisation ; l'outil ne les visite pas. Postulez-y à la main.
+- **Offres d'emploi** : récupérées par les **API officielles** de France Travail et d'Adzuna, prévues pour
+  cet usage, ou ajoutées par vous (lien ou copier-coller).
+- **LinkedIn, Indeed, Welcome to the Jungle…** : leurs conditions d'utilisation interdisent l'extraction
+  automatisée et l'utilisation de robots pour postuler. Ces plateformes détectent ces robots et suspendent
+  les comptes concernés (LinkedIn a poursuivi en justice des sociétés d'extraction de données). L'outil ne
+  les interroge donc pas automatiquement et ne remplit pas leurs formulaires : ajoutez leurs offres avec
+  `offres ajouter --fichier` (texte copié) et déposez la candidature vous-même avec le dossier préparé.
+  Beaucoup de ces offres sont aussi diffusées sur France Travail ou référencées par Adzuna.
 
 ## Conservation des données
 
@@ -33,7 +39,10 @@ pas.
 - **Identifiez-vous clairement** : vos nom, téléphone et adresse figurent dans chaque message.
 - **Droit d'opposition** : chaque e-mail indique comment ne plus être contacté. Si quelqu'un vous le
   demande, exécutez `autopostule exclure <adresse ou domaine>` : l'outil ne le recontactera jamais.
-- **Une candidature par entreprise**, pas de relance avant 120 jours (paramétrable).
+- **Une candidature par offre**, et une seule candidature spontanée par entreprise, sans relance avant
+  120 jours (paramétrable).
+- **CV et lettres sincères** : l'outil réorganise et met en avant votre parcours mais n'ajoute aucune
+  compétence ni expérience. Relisez ce qui part en votre nom.
 - **Volume raisonnable** : 20 à 40 envois par jour. Au-delà, Gmail/Outlook peuvent bloquer votre compte, et
   vos messages risquent d'arriver en spam chez tous vos destinataires.
 - **Qualité plutôt que quantité** : ciblez les bons métiers et les bonnes zones, relisez les lettres

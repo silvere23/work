@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -57,8 +58,34 @@ CREATE TABLE IF NOT EXISTS exclusions (
     raison TEXT,
     date_ajout TEXT
 );
+CREATE TABLE IF NOT EXISTS offres (
+    id TEXT PRIMARY KEY,         -- ft:<id>, adzuna:<id>, manuel:<hash>
+    source TEXT,
+    titre TEXT,
+    entreprise TEXT,
+    description TEXT,
+    url TEXT,
+    email TEXT,
+    ville TEXT,
+    code_postal TEXT,
+    departement TEXT,
+    type_contrat TEXT,
+    date_publication TEXT,
+    salaire TEXT,
+    competences TEXT,            -- JSON
+    reference TEXT,
+    metier TEXT,
+    cle_doublon TEXT,
+    siren TEXT,
+    statut TEXT DEFAULT 'nouvelle',  -- nouvelle | preparee | a_postuler_sur_site | postulee_sur_site | ignoree
+    dossier TEXT,
+    date_ajout TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_candidatures_statut ON candidatures(statut);
+CREATE INDEX IF NOT EXISTS idx_offres_doublon ON offres(cle_doublon);
 """
+
+MIGRATIONS = {"candidatures": {"offre_id": "TEXT", "cv_pdf": "TEXT"}}
 
 
 def maintenant() -> str:
@@ -71,6 +98,16 @@ class Base:
         self.cx = sqlite3.connect(str(self.chemin))
         self.cx.row_factory = sqlite3.Row
         self.cx.executescript(SCHEMA)
+        self._migrer()
+
+    def _migrer(self) -> None:
+        """Ajoute les colonnes apparues après la création d'une base existante."""
+        for table, colonnes in MIGRATIONS.items():
+            existantes = {ligne[1] for ligne in self.cx.execute(f"PRAGMA table_info({table})")}
+            for nom, type_ in colonnes.items():
+                if nom not in existantes:
+                    self.cx.execute(f"ALTER TABLE {table} ADD COLUMN {nom} {type_}")
+        self.cx.commit()
 
     def fermer(self) -> None:
         self.cx.close()
@@ -164,10 +201,10 @@ class Base:
     def ajouter_candidature(self, c: dict) -> int:
         cur = self.cx.execute(
             """INSERT INTO candidatures (siren, email, metier, objet, corps, lettre, lettre_pdf, moteur,
-                                         statut, date_creation)
+                                         statut, date_creation, offre_id, cv_pdf)
                VALUES (:siren, :email, :metier, :objet, :corps, :lettre, :lettre_pdf, :moteur,
-                       'brouillon', :date)""",
-            {**c, "date": maintenant()},
+                       'brouillon', :date, :offre_id, :cv_pdf)""",
+            {"offre_id": None, "cv_pdf": None, **c, "date": maintenant()},
         )
         self.cx.commit()
         return int(cur.lastrowid)
@@ -176,8 +213,11 @@ class Base:
         return self.cx.execute("SELECT * FROM candidatures WHERE id = ?", (id_,)).fetchone()
 
     def candidatures(self, statut: str | None = None) -> list[sqlite3.Row]:
-        sql = """SELECT c.*, e.nom AS entreprise, e.ville AS ville FROM candidatures c
-                 JOIN entreprises e ON e.siren = c.siren"""
+        sql = """SELECT c.*, COALESCE(e.nom, o.entreprise, '?') AS entreprise,
+                        COALESCE(e.ville, o.ville) AS ville, o.titre AS titre_offre
+                 FROM candidatures c
+                 LEFT JOIN entreprises e ON e.siren = c.siren
+                 LEFT JOIN offres o ON o.id = c.offre_id"""
         if statut:
             return self.cx.execute(sql + " WHERE c.statut = ? ORDER BY c.id", (statut,)).fetchall()
         return self.cx.execute(sql + " ORDER BY c.id").fetchall()
@@ -219,6 +259,49 @@ class Base:
             (limite, siren, email.lower()),
         ).fetchone() is not None
 
+    def deja_postule_offre(self, offre_id: str) -> bool:
+        return self.cx.execute(
+            "SELECT 1 FROM candidatures WHERE offre_id = ? AND statut = 'envoyee'", (offre_id,)
+        ).fetchone() is not None
+
+    # -- offres ------------------------------------------------------------- #
+
+    def ajouter_offre(self, o: dict) -> bool:
+        """Enregistre une offre ; False si elle est déjà connue (même id ou même offre sur une autre source)."""
+        if self.cx.execute("SELECT 1 FROM offres WHERE id = ? OR cle_doublon = ?",
+                           (o["id"], o.get("cle_doublon"))).fetchone():
+            return False
+        colonnes = ("id", "source", "titre", "entreprise", "description", "url", "email", "ville", "code_postal",
+                    "departement", "type_contrat", "date_publication", "salaire", "reference", "metier",
+                    "cle_doublon")
+        valeurs = {c: o.get(c) for c in colonnes}
+        valeurs["competences"] = json.dumps(o.get("competences") or [], ensure_ascii=False)
+        valeurs["date_ajout"] = maintenant()
+        self.cx.execute(
+            f"INSERT INTO offres ({', '.join(valeurs)}) VALUES ({', '.join(':' + c for c in valeurs)})", valeurs)
+        self.cx.commit()
+        return True
+
+    def offre(self, id_: str) -> sqlite3.Row | None:
+        return self.cx.execute("SELECT * FROM offres WHERE id = ?", (id_,)).fetchone()
+
+    def offres(self, statut: str | None = None, limite: int | None = None) -> list[sqlite3.Row]:
+        sql = "SELECT * FROM offres"
+        params: list = []
+        if statut:
+            sql += " WHERE statut = ?"
+            params.append(statut)
+        sql += " ORDER BY date_publication DESC, date_ajout DESC"
+        if limite:
+            sql += f" LIMIT {int(limite)}"
+        return self.cx.execute(sql, params).fetchall()
+
+    def maj_offre(self, id_: str, **champs) -> None:
+        if champs:
+            affectations = ", ".join(f"{c} = :{c}" for c in champs)
+            self.cx.execute(f"UPDATE offres SET {affectations} WHERE id = :id", {**champs, "id": id_})
+            self.cx.commit()
+
     # -- statistiques ------------------------------------------------------- #
 
     def statistiques(self) -> dict[str, int]:
@@ -229,5 +312,7 @@ class Base:
         stats["emails"] = self.cx.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
         for statut, n in self.cx.execute("SELECT statut, COUNT(*) FROM candidatures GROUP BY statut"):
             stats[f"candidatures_{statut}"] = n
+        for statut, n in self.cx.execute("SELECT statut, COUNT(*) FROM offres GROUP BY statut"):
+            stats[f"offres_{statut}"] = n
         stats["exclusions"] = self.cx.execute("SELECT COUNT(*) FROM exclusions").fetchone()[0]
         return stats

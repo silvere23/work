@@ -10,8 +10,12 @@ from pathlib import Path
 
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader, StrictUndefined
 
+from .config import contrats_vises
 from .cv import AnalyseCV
-from .referentiel import METIERS, SECTEURS_NAF, Metier, borne_effectif, normaliser
+from .ia import Redacteur
+from .offres import titre_propre
+from .pdfutil import Document
+from .referentiel import METIERS, SECTEURS_NAF, Metier, borne_effectif, libelle_contrats, normaliser
 
 DOSSIER_MODELES = Path(__file__).parent / "templates"
 MOIS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
@@ -23,9 +27,6 @@ SIGLES_JURIDIQUES = re.compile(r"\b(SAS|SASU|SARL|EURL|SA|SNC|SCOP)\b\.?", re.I)
 COMPETENCES_VAGUES = {normaliser(c) for c in ("support", "N1", "N2", "maintenance", "dépannage", "imprimantes",
                                               "ticketing", "LAN", "WAN", "routage", "switching", "sauvegarde",
                                               "Teams", "Outlook", "Wi-Fi", "Agile")}
-
-# Modèles pour lesquels le paramètre serveur `fallbacks` est disponible.
-MODELES_AVEC_FALLBACK = {"claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"}
 
 
 def accorder(texte: str, genre: str | None) -> str:
@@ -73,6 +74,16 @@ def _minuscule(texte: str) -> str:
     return texte[:1].lower() + texte[1:]
 
 
+def _de(mot: str) -> str:
+    """« de » ou « d' » devant un mot : d'administrateur, de technicien."""
+    return ("d'" if normaliser(mot[:1]) in "aeiouyh" else "de ") + mot
+
+
+def _que(mot: str) -> str:
+    """« que » ou « qu' » : qu'administrateur, que technicien."""
+    return ("qu'" if normaliser(mot[:1]) in "aeiouyh" else "que ") + mot
+
+
 def _enumerer(elements: list[str]) -> str:
     if not elements:
         return ""
@@ -91,10 +102,16 @@ class Lettre:
 
 
 class GenerateurLettres:
-    def __init__(self, config, analyse_cv: AnalyseCV | None = None):
+    def __init__(self, config, analyse_cv: AnalyseCV | None = None, competences_cv: list[str] | None = None,
+                 redacteur: Redacteur | None = None, missions_cv: list[str] | None = None):
         self.config = config
         self.profil = config.profil
         self.cv = analyse_cv
+        # compétences réellement présentes dans le CV (analyse du fichier + CV structuré)
+        self.competences_cv = {normaliser(c): c for c in [*(analyse_cv.competences if analyse_cv else []),
+                                                          *(competences_cv or [])]}
+        self.missions_cv = [str(m).strip().rstrip(".") for m in missions_cv or [] if str(m).strip()]
+        self.redacteur = redacteur or Redacteur(config["lettre"].get("modele_ia") or "claude-opus-5-5")
         chargeurs = []
         perso = config["lettre"].get("dossier_modeles")
         if perso:
@@ -102,45 +119,92 @@ class GenerateurLettres:
         chargeurs.append(FileSystemLoader(str(DOSSIER_MODELES)))
         self.env = Environment(loader=ChoiceLoader(chargeurs), undefined=StrictUndefined,
                                keep_trailing_newline=True, autoescape=False)
-        self._client_ia = None
 
     # -- paragraphes (moteur « modele ») ------------------------------------ #
 
-    def _competences(self, metier: Metier) -> list[str]:
-        if not self.cv:
-            return []
-        trouvees = self.cv.competences_pour(metier.cle, maximum=50)
-        return [c for c in trouvees if normaliser(c) not in COMPETENCES_VAGUES][:6]
+    def _competences(self, metier: Metier, mots_cles: list[str] | None = None) -> list[str]:
+        """Compétences à citer : d'abord celles demandées par l'offre ET présentes dans le CV."""
+        choisies: list[str] = []
+        for c in mots_cles or []:
+            if normaliser(c) in self.competences_cv and normaliser(c) not in COMPETENCES_VAGUES:
+                choisies.append(self.competences_cv[normaliser(c)])
+        if self.cv:
+            for c in self.cv.competences_pour(metier.cle, maximum=50):
+                if normaliser(c) not in COMPETENCES_VAGUES and c not in choisies:
+                    choisies.append(c)
+        return choisies[:6]
 
-    def paragraphes(self, entreprise: dict, metier: Metier) -> list[str]:
+    def _realisations(self, mots: list[str], nombre: int = 2) -> list[str]:
+        """Missions du CV structuré les plus en rapport avec l'offre (jamais de mission inventée)."""
+        def score(mission: str) -> int:
+            texte = f" {normaliser(mission)} "
+            return sum(1 for m in mots if f" {normaliser(m)} " in texte or f" {normaliser(m)}," in texte)
+
+        classees = sorted(self.missions_cv, key=score, reverse=True)
+        return [m for m in classees if score(m) > 0][:nombre] or classees[:nombre]
+
+    def paragraphes(self, entreprise: dict, metier: Metier, offre: dict | None = None,
+                    mots_cles: list[str] | None = None, contrats: list[str] | None = None) -> list[str]:
         p = self.profil
-        nom = nom_court(entreprise["nom"])
-        graine = f"{entreprise.get('siren')}-{metier.cle}"
+        nom = nom_court(entreprise.get("nom") or "") if entreprise.get("nom") else "votre entreprise"
+        graine = f"{entreprise.get('siren')}-{metier.cle}-{(offre or {}).get('id', '')}"
         de_nom = ("d'" if normaliser(nom[:1]) in "aeiouyh" else "de ") + nom
+        titre = metier.titre_pour(p.get("genre"))
 
-        accroche = _variante(metier.accroches, graine + "a").format(entreprise=nom, de_entreprise=de_nom)
+        if offre:
+            intitule = titre_propre(offre.get("titre") or "") or titre
+            poste = _minuscule(intitule)
+            accroche = _variante((
+                f"Votre offre {_de(poste)} a retenu toute mon attention : elle correspond "
+                f"pleinement à mon parcours et au poste que je recherche.",
+                f"C'est avec un vif intérêt que j'ai découvert votre annonce pour un poste {_de(poste)}, "
+                f"à laquelle je souhaite répondre par la présente candidature.",
+                f"Je vous propose ma candidature au poste {_de(poste)} : les missions décrites dans "
+                f"votre annonce rejoignent précisément ce que je fais et ce que j'aime faire.",
+            ), graine + "a")
+        else:
+            accroche = _variante(metier.accroches, graine + "a").format(entreprise=nom, de_entreprise=de_nom)
 
         annees = int(p.get("annees_experience") or 0)
-        competences = self._competences(metier)
+        competences = self._competences(metier, mots_cles)
         missions = ", ainsi que ".join(metier.missions[:2])
-        if annees >= 1:
-            debut = _variante((
-                f"[Fort|Forte|Fort(e)] de {annees} an{'s' if annees > 1 else ''} d'expérience en tant que "
-                f"{_minuscule(p.get('titre') or metier.titre_pour(p.get('genre')))}, j'ai notamment pris en charge {missions}.",
+        poste_actuel = _minuscule(p.get("titre") or titre)
+        realisations = self._realisations(mots_cles or list(metier.competences))
+        if annees >= 1 and realisations:
+            parcours = (f"[Fort|Forte|Fort(e)] de {annees} an{'s' if annees > 1 else ''} d'expérience en tant "
+                        f"{_que(poste_actuel)}, j'ai notamment mené les missions suivantes : "
+                        f"{' ; '.join(_minuscule(r) for r in realisations)}.")
+        elif annees >= 1:
+            parcours = _variante((
+                f"[Fort|Forte|Fort(e)] de {annees} an{'s' if annees > 1 else ''} d'expérience en tant "
+                f"{_que(poste_actuel)}, j'ai notamment pris en charge {missions}.",
                 f"Au cours de mes {annees} année{'s' if annees > 1 else ''} d'expérience comme "
-                f"{_minuscule(p.get('titre') or metier.titre_pour(p.get('genre')))}, j'ai assuré {missions}.",
+                f"{poste_actuel}, j'ai assuré {missions}.",
             ), graine + "b")
         else:
-            debut = (f"Récemment [diplômé|diplômée|diplômé(e)] et [formé|formée|formé(e)] au métier de "
-                     f"{_minuscule(metier.titre_pour(p.get('genre')))}, j'ai pu travailler sur {missions} lors de mes projets et stages.")
-        if competences:
-            debut += f" Je maîtrise en particulier {_enumerer(competences)}."
-        parcours = debut
+            parcours = (f"Récemment [diplômé|diplômée|diplômé(e)] et [formé|formée|formé(e)] au métier de "
+                        f"{_minuscule(titre)}, j'ai pu travailler sur {missions} lors de mes projets et stages.")
+        demandees = [c for c in competences if normaliser(c) in {normaliser(m) for m in mots_cles or []}]
+        if offre and len(demandees) >= 2:
+            parcours += (f" Les compétences demandées dans votre annonce, notamment {_enumerer(demandees[:4])}, "
+                         f"sont au cœur de mon parcours.")
+            autres = [c for c in competences if c not in demandees[:4]][:3]
+            if autres:
+                parcours += f" Je maîtrise également {_enumerer(autres)}."
+        elif competences:
+            parcours += f" Je maîtrise en particulier {_enumerer(competences)}."
 
         secteur = SECTEURS_NAF.get(entreprise.get("naf") or "", "le numérique")
         effectif = borne_effectif(entreprise.get("tranche_effectif"))
         categorie = (entreprise.get("categorie") or "").upper()
-        if categorie in {"GE", "ETI"} or (effectif is not None and effectif >= 250):
+        if offre and not entreprise.get("naf"):
+            options = (
+                f"Rejoindre {nom} sur ce poste serait pour moi l'occasion de mettre mon expérience au service "
+                f"de vos projets et de continuer à progresser au sein de vos équipes.",
+                "Je suis [convaincu|convaincue|convaincu(e)] de pouvoir rapidement m'intégrer à vos équipes et "
+                "contribuer efficacement aux missions décrites dans votre annonce.",
+            )
+        elif categorie in {"GE", "ETI"} or (effectif is not None and effectif >= 250):
             options = (
                 f"Intégrer un acteur reconnu de {secteur} tel que {nom} serait pour moi l'occasion d'évoluer "
                 f"sur des environnements d'envergure, aux côtés d'équipes expérimentées.",
@@ -162,16 +226,20 @@ class GenerateurLettres:
                 f"[convaincu|convaincue|convaincu(e)] de pouvoir rapidement contribuer à vos missions.",
             )
         paragraphe_entreprise = _variante(options, graine + "c")
-        ville_e, ville_p = entreprise.get("ville") or "", p.get("ville") or ""
+        ville_e = (offre or {}).get("ville") or entreprise.get("ville") or ""
+        dep_e = (offre or {}).get("departement") or entreprise.get("departement") or ""
+        ville_p = p.get("ville") or ""
         proche = (normaliser(ville_e) and normaliser(ville_e) == normaliser(ville_p)) or (
-            str(p.get("code_postal") or "")[:2] and str(p.get("code_postal"))[:2] == (entreprise.get("departement") or "")
+            str(p.get("code_postal") or "")[:2] and str(p.get("code_postal"))[:2] == dep_e
         )
         if proche and ville_e:
             paragraphe_entreprise += f" Résidant à proximité, je peux facilement rejoindre vos locaux de {ville_e.title()}."
 
         dispo = p.get("disponibilite") or "rapidement"
-        conclusion = (f"Disponible {dispo}, je serais [heureux|heureuse|heureux(se)] de vous présenter plus en "
-                      f"détail ma motivation lors d'un entretien.")
+        contrat = libelle_contrats([offre["type_contrat"]] if offre and offre.get("type_contrat") else contrats or [])
+        conclusion = (f"Disponible {dispo}{f' pour un {contrat}' if contrat and contrat[0] in 'C' else ''}, je serais "
+                      f"[heureux|heureuse|heureux(se)] de vous présenter plus en détail ma motivation lors d'un "
+                      f"entretien.")
 
         paragraphes = [accroche, parcours, paragraphe_entreprise]
         if self.config["lettre"].get("paragraphe_perso"):
@@ -181,77 +249,83 @@ class GenerateurLettres:
 
     # -- moteur IA (Claude) ------------------------------------------------- #
 
-    def corps_ia(self, entreprise: dict, metier: Metier, brouillon: str) -> str:
-        import anthropic
-
-        if self._client_ia is None:
-            self._client_ia = anthropic.Anthropic()
-        modele = self.config["lettre"].get("modele_ia") or "claude-opus-5-5"
+    def corps_ia(self, entreprise: dict, metier: Metier, brouillon: str, offre: dict | None = None,
+                 contrats: list[str] | None = None) -> str:
         texte_cv = (self.cv.texte if self.cv else "")[:20000]
         consignes = (
-            "Tu rédiges des lettres de motivation en français pour des candidatures spontanées dans "
-            "l'informatique. Règles : n'invente aucune expérience, compétence, diplôme ou chiffre absent du CV ; "
-            "ton professionnel, sobre et chaleureux ; 180 à 280 mots ; 3 ou 4 paragraphes ; pas d'en-tête, "
-            "pas de « Madame, Monsieur », pas de formule de politesse finale ni de signature : uniquement les "
-            "paragraphes du corps, séparés par une ligne vide. Adapte le propos à l'entreprise (secteur, taille, "
-            "localisation) sans affirmer de faits non fournis à son sujet."
+            "Tu rédiges des lettres de motivation en français pour des candidatures dans l'informatique. "
+            "Règles : n'invente aucune expérience, compétence, diplôme ou chiffre absent du CV ; quand une offre "
+            "est fournie, réponds précisément à ses besoins en t'appuyant uniquement sur ce que le CV permet "
+            "d'affirmer, et ne prétends pas maîtriser une compétence demandée absente du CV ; ton professionnel, "
+            "sobre et chaleureux ; 180 à 280 mots ; 3 ou 4 paragraphes ; pas d'en-tête, pas de « Madame, "
+            "Monsieur », pas de formule de politesse finale ni de signature : uniquement les paragraphes du "
+            "corps, séparés par une ligne vide. N'affirme aucun fait sur l'entreprise qui ne soit pas fourni."
         )
+        bloc_offre = ""
+        if offre:
+            bloc_offre = (f"<offre>\nIntitulé : {offre.get('titre')}\nContrat : {offre.get('type_contrat') or '?'}\n"
+                          f"Lieu : {offre.get('ville') or '?'}\n{(offre.get('description') or '')[:8000]}\n</offre>\n\n")
         demande = (
             f"<cv>\n{texte_cv}\n</cv>\n\n"
             f"<candidat>\nNom : {self.profil.get('prenom')} {self.profil.get('nom')}\n"
             f"Genre grammatical : {self.profil.get('genre') or 'non précisé (écriture neutre)'}\n"
             f"Titre : {self.profil.get('titre')}\nExpérience : {self.profil.get('annees_experience')} an(s)\n"
-            f"Contrat recherché : {self.profil.get('type_contrat')}\n"
+            f"Contrat recherché : {libelle_contrats(contrats or []) or 'non précisé'}\n"
             f"Disponibilité : {self.profil.get('disponibilite')}\nMobilité : {self.profil.get('mobilite')}\n"
             f"</candidat>\n\n"
-            f"<poste>{metier.titre}</poste>\n\n"
-            f"<entreprise>\nNom : {nom_court(entreprise['nom'])}\n"
+            f"<poste>{titre_propre((offre or {}).get('titre') or '') or metier.titre}</poste>\n\n"
+            f"{bloc_offre}"
+            f"<entreprise>\nNom : {nom_court(entreprise.get('nom') or '') or 'inconnu'}\n"
             f"Activité : {SECTEURS_NAF.get(entreprise.get('naf') or '', 'informatique')}\n"
-            f"Ville : {entreprise.get('ville')}\nCatégorie : {entreprise.get('categorie') or 'inconnue'}\n"
-            f"</entreprise>\n\n"
+            f"Ville : {entreprise.get('ville') or (offre or {}).get('ville')}\n"
+            f"Catégorie : {entreprise.get('categorie') or 'inconnue'}\n</entreprise>\n\n"
             f"<brouillon>\n{brouillon}\n</brouillon>\n\n"
             "Réécris et personnalise le corps de cette lettre à partir du CV et des informations ci-dessus."
         )
-        options = {}
-        if modele in MODELES_AVEC_FALLBACK:
-            options = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
-        reponse = self._client_ia.beta.messages.create(
-            model=modele,
-            max_tokens=16000,
-            thinking={"type": "adaptive"},
-            output_config={"effort": "medium"},
-            system=consignes,
-            messages=[{"role": "user", "content": demande}],
-            **options,
-        )
-        if reponse.stop_reason == "refusal":
-            raise RuntimeError("le modèle a refusé la demande")
-        texte = "".join(b.text for b in reponse.content if b.type == "text").strip()
-        if not texte:
-            raise RuntimeError(f"réponse vide (stop_reason={reponse.stop_reason})")
-        return texte
+        return self.redacteur.rediger(consignes, demande)
 
     # -- assemblage --------------------------------------------------------- #
 
-    def generer(self, entreprise: dict, cle_metier: str, moteur: str | None = None) -> Lettre:
+    def generer(self, entreprise: dict, cle_metier: str, moteur: str | None = None, offre: dict | None = None,
+                mots_cles: list[str] | None = None, contrats: list[str] | None = None) -> Lettre:
         metier = METIERS[cle_metier]
+        contrats = contrats if contrats is not None else contrats_vises(self.config)
         moteur = moteur or self.config["lettre"].get("moteur") or "modele"
-        paragraphes = self.paragraphes(entreprise, metier)
+        paragraphes = self.paragraphes(entreprise, metier, offre, mots_cles, contrats)
         corps = "\n\n".join(paragraphes)
         moteur_effectif = "modele"
         if moteur == "ia":
             try:
-                corps = self.corps_ia(entreprise, metier, corps)
+                corps = self.corps_ia(entreprise, metier, corps, offre, contrats)
                 moteur_effectif = "ia"
             except Exception as erreur:  # repli sur le modèle : la candidature ne doit pas être bloquée
-                print(f"  [IA indisponible pour {entreprise['nom']} : {erreur} - modèle utilisé]")
+                print(f"  [IA indisponible pour {entreprise.get('nom') or '?'} : {erreur} - modèle utilisé]")
 
         g = (self.profil.get("genre") or "").upper()[:1]
+        titre = metier.titre_pour(self.profil.get("genre"))
+        signataire = f"{self.profil.get('prenom', '')} {self.profil.get('nom', '')}".strip()
+        if offre:
+            intitule = titre_propre(offre.get("titre") or "") or titre
+            reference = f" - réf. {offre['reference']}" if offre.get("reference") else ""
+            objet_lettre = f"Candidature au poste {_de(intitule)}{reference}"
+            objet = f"Candidature - {intitule}{reference} - {signataire}".strip(" -")
+            contrat = libelle_contrats([offre["type_contrat"]]) if offre.get("type_contrat") else ""
+        else:
+            contrat = libelle_contrats(contrats)
+            objet_lettre = f"Candidature spontanée - {titre}" + (f" ({contrat})" if contrat else "")
+            objet = f"Candidature spontanée - {titre} - {signataire}".strip(" -")
         contexte = {
             "profil": self.profil,
-            "entreprise": {**entreprise, "nom_court": nom_court(entreprise["nom"])},
+            "entreprise": {"adresse": "", "ville": "", "naf": "", **entreprise, "nom": entreprise.get("nom") or "",
+                           "nom_court": nom_court(entreprise["nom"]) if entreprise.get("nom") else "votre entreprise"},
             "metier": metier,
-            "titre": metier.titre_pour(self.profil.get("genre")),
+            "titre": titre,
+            "offre": offre,
+            "intitule": titre_propre(offre.get("titre") or "") if offre else titre,
+            "source_offre": "France Travail" if offre and offre.get("source") == "France Travail" else "",
+            "contrat": contrat,
+            "objet_lettre": objet_lettre,
+            "poste_de": _de(_minuscule(titre)),
             "date": date_fr(),
             "corps": corps,
             "e": "e" if g == "F" else ("" if g == "M" else "(e)"),
@@ -262,8 +336,6 @@ class GenerateurLettres:
         message = self.env.get_template("mail.txt.j2").render(
             **contexte, joindre_pdf=joindre_pdf, resume=resume, lettre_corps=corps
         )
-        objet = (f"Candidature spontanée - {metier.titre_pour(self.profil.get('genre'))} - "
-                 f"{self.profil.get('prenom', '')} {self.profil.get('nom', '')}").strip(" -")
         return Lettre(objet=objet, corps=corps, lettre=_nettoyer(lettre), message=_nettoyer(message),
                       moteur=moteur_effectif)
 
@@ -277,39 +349,12 @@ def _nettoyer(texte: str) -> str:
 # Export PDF
 # --------------------------------------------------------------------------- #
 
-POLICES_UNICODE = (
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-    "/Library/Fonts/Arial Unicode.ttf",
-    "C:/Windows/Fonts/arial.ttf",
-)
-REMPLACEMENTS_LATIN1 = {"’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...", "œ": "oe",
-                        "Œ": "OE", "€": "EUR", "\u00a0": " ", "\u202f": " ", "•": "-"}
-
-
 def ecrire_pdf(texte: str, chemin: Path) -> Path:
-    from fpdf import FPDF
-
-    pdf = FPDF(format="A4")
-    pdf.set_margins(22, 20, 22)
-    pdf.set_auto_page_break(True, margin=20)
-    pdf.add_page()
-    police = next((p for p in POLICES_UNICODE if Path(p).exists()), None)
-    if police:
-        pdf.add_font("Lettre", "", police)
-        pdf.set_font("Lettre", size=10.5)
-    else:
-        pdf.set_font("Helvetica", size=10.5)
-        for avant, apres in REMPLACEMENTS_LATIN1.items():
-            texte = texte.replace(avant, apres)
-        texte = texte.encode("latin-1", errors="replace").decode("latin-1")
-    largeur = pdf.w - pdf.l_margin - pdf.r_margin
+    doc = Document()
+    doc.police_(10.5)
     for ligne in texte.split("\n"):
         if ligne.strip():
-            pdf.multi_cell(largeur, 5.2, ligne, new_x="LMARGIN", new_y="NEXT")
+            doc.paragraphe(ligne)
         else:
-            pdf.ln(3.5)
-    chemin = Path(chemin)
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    pdf.output(str(chemin))
-    return chemin
+            doc.pdf.ln(3.5)
+    return doc.enregistrer(chemin)

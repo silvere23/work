@@ -248,8 +248,8 @@ def test_moteur_ia_avec_faux_serveur(tmp_path, monkeypatch):
     try:
         cfg = depuis_dict({"profil": {"prenom": "Jean", "nom": "Dupont"}, "lettre": {"moteur": "ia"}}, tmp_path)
         gen = GenerateurLettres(cfg, analyser("Docker Kubernetes Terraform"))
-        gen._client_ia = anthropic.Anthropic(api_key="test", base_url=f"http://127.0.0.1:{httpd.server_port}",
-                                             max_retries=0)
+        gen.redacteur.client = anthropic.Anthropic(api_key="test", base_url=f"http://127.0.0.1:{httpd.server_port}",
+                                                   max_retries=0)
         lettre = gen.generer(convertir({"siren": "1", "nom_complet": "ACME", "siege": {}}, "devops"), "devops")
     finally:
         httpd.shutdown()

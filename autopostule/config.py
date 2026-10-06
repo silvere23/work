@@ -58,6 +58,10 @@ class Config:
         return self.chemin_relatif(self.donnees["cv"]["fichier"])
 
     @property
+    def fichier_cv_structure(self) -> Path:
+        return self.chemin_relatif(self.donnees["cv_adapte"].get("fichier") or "cv/cv.yaml")
+
+    @property
     def mot_de_passe_smtp(self) -> str:
         mdp = os.environ.get("AUTOPOSTULE_SMTP_PASSWORD", "")
         if not mdp:
@@ -78,7 +82,20 @@ def _defauts() -> dict:
     defauts["profil"] = {k: ("" if isinstance(v, str) else v) for k, v in defauts["profil"].items()}
     defauts["profil"]["annees_experience"] = 0
     defauts["envoi"]["smtp_utilisateur"] = ""
+    defauts["recherche"]["types_contrat"] = []
     return defauts
+
+
+def contrats_vises(config: "Config") -> list[str]:
+    """Types de contrat recherchés (recherche.types_contrat, ou l'ancien champ profil.type_contrat)."""
+    from .referentiel import contrats_valides
+
+    valeurs = config["recherche"].get("types_contrat") or []
+    if isinstance(valeurs, str):
+        valeurs = [v.strip() for v in valeurs.split(",") if v.strip()]
+    if not valeurs and config.profil.get("type_contrat"):
+        valeurs = [config.profil["type_contrat"]]
+    return contrats_valides(valeurs)
 
 
 def charger(chemin: str | Path = "config.yaml") -> Config:

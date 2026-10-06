@@ -16,7 +16,7 @@ pouvez n'indiquer que ce que vous changez. Les chemins relatifs sont résolus pa
 | `linkedin`, `github`, `portfolio` | URL |                         | signature                                    |
 | `titre`             | texte   | `Administrateur systèmes`       | « en tant que … »                            |
 | `annees_experience` | entier  | `3`                             | 0 = formulation « jeune diplômé(e) »          |
-| `type_contrat`      | texte   | `CDI`, `alternance`             | objet et message                              |
+| `type_contrat`      | texte   | `CDI`                           | ancien champ, remplacé par `recherche.types_contrat` (encore lu s'il est seul) |
 | `disponibilite`     | texte   | `immédiatement`, `à partir de janvier` | conclusion                           |
 | `mobilite`          | texte   | `Hauts-de-France`               | transmis à l'IA                               |
 
@@ -32,6 +32,7 @@ pouvez n'indiquer que ce que vous changez. Les chemins relatifs sont résolus pa
 |------------------------|------------------------------|------------------------------------------------|
 | `metiers`              | `[administrateur_systeme]`   | `administrateur_reseau`, `administrateur_systeme`, `technicien_informatique`, `devops`, `cybersecurite`, `developpeur` |
 | `regions`              | `[ile-de-france]`            | clés de `autopostule regions` ; alias `idf`, `hdf`, `paca`, `aura`… |
+| `types_contrat`        | `["CDI"]` (exemple)          | type(s) de poste : `CDI`, `CDD`, `interim`, `alternance`, `stage`, `freelance` ; filtre les offres, figure dans les lettres ; vide = tous ; option `-t` en ligne de commande |
 | `departements`         | `[]`                         | ex. `["59", "62"]` ; prioritaire sur `regions` |
 | `villes`               | `[]`                         | filtre sur la commune du siège                 |
 | `effectif_min`         | `10`                         | 0 = toutes tailles                             |
@@ -65,6 +66,26 @@ Codes NAF utilisés par défaut (voir `autopostule metiers`) :
 | `verifier_mx`               | `true`                         | écarte les domaines sans serveur de messagerie |
 | `tlds`                      | `[.fr, .com, .io, .eu, .net]`  | extensions essayées pour deviner le site    |
 
+## `offres`
+
+| Clé                     | Défaut                          | Description                                          |
+|-------------------------|---------------------------------|------------------------------------------------------|
+| `sources`               | `[france_travail, adzuna]`      | sources interrogées (identifiants dans `.env`)        |
+| `publiees_depuis_jours` | `7`                             | ancienneté maximale (France Travail arrondit à 1, 3, 7, 14 ou 31 jours) |
+| `limite`                | `100`                           | offres max par métier et par source                   |
+| `chercher_email_rh`     | `true`                          | offre sans e-mail : recherche de l'entreprise (SIRENE) puis de son adresse RH publique |
+
+Les requêtes envoyées pour chaque métier sont définies dans `referentiel.METIERS` (`recherches`).
+
+## `cv_adapte`
+
+| Clé                 | Défaut          | Description                                                          |
+|---------------------|-----------------|----------------------------------------------------------------------|
+| `actif`             | `true`          | produit un CV PDF adapté à chaque candidature                        |
+| `fichier`           | `cv/cv.yaml`    | CV structuré (créé par `autopostule cv-structure`)                   |
+| `titre_selon_offre` | `true`          | le titre du CV devient l'intitulé du poste visé                      |
+| `moteur`            | `modele`        | `ia` : accroche du CV réécrite par Claude pour chaque offre          |
+
 ## `lettre`
 
 | Clé                | Défaut             | Description                                                  |
@@ -94,7 +115,18 @@ Codes NAF utilisés par défaut (voir `autopostule metiers`) :
 
 | Clé       | Défaut     | Description                                                       |
 |-----------|------------|-------------------------------------------------------------------|
-| `dossier` | `donnees`  | base `autopostule.db`, `lettres/`, `pieces/`, `envois_test/`      |
+| `dossier` | `donnees`  | base `autopostule.db`, `lettres/`, `offres/<id>/`, `cv_adaptes/`, `pieces/`, `envois_test/` |
+
+## CV structuré (`cv/cv.yaml`)
+
+| Clé               | Type                         | Contenu                                                    |
+|-------------------|------------------------------|------------------------------------------------------------|
+| `titre`           | texte                        | titre par défaut (remplacé par l'intitulé visé)            |
+| `accroche`        | texte                        | résumé de 2-3 phrases                                      |
+| `competences`     | dict catégorie → liste       | `Systèmes: [Windows Server, Linux]` ; une simple liste est aussi acceptée |
+| `experiences`     | liste                        | `poste`, `entreprise`, `lieu`, `debut`, `fin`, `missions` (liste) |
+| `formations`      | liste                        | `diplome`, `etablissement`, `annee`                        |
+| `certifications`, `langues`, `centres_interet` | listes de textes |                                                 |
 
 ## Variables d'environnement (`.env`)
 
@@ -102,3 +134,5 @@ Codes NAF utilisés par défaut (voir `autopostule metiers`) :
 |-----------------------------|-----------------------------------------------------|
 | `AUTOPOSTULE_SMTP_PASSWORD` | mot de passe SMTP (mot de passe d'application Gmail) |
 | `ANTHROPIC_API_KEY`         | clé API Claude (mode IA uniquement)                 |
+| `FRANCE_TRAVAIL_CLIENT_ID` / `FRANCE_TRAVAIL_CLIENT_SECRET` | application francetravail.io abonnée à « Offres d'emploi v2 » |
+| `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | identifiants developer.adzuna.com            |

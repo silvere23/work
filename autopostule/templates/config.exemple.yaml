@@ -18,7 +18,6 @@ profil:
   portfolio: ""
   titre: "Administrateur systèmes et réseaux"
   annees_experience: 3
-  type_contrat: "CDI"       # CDI, CDD, alternance, stage, freelance...
   disponibilite: "immédiatement"
   mobilite: "Île-de-France"
   permis: true
@@ -30,6 +29,9 @@ recherche:
   # Métiers ciblés : administrateur_reseau, administrateur_systeme,
   # technicien_informatique, devops, cybersecurite, developpeur
   metiers: ["administrateur_systeme"]
+  # Type(s) de poste recherché(s) : CDI, CDD, interim, alternance, stage, freelance
+  # Filtre les offres et apparaît dans les lettres (« Candidature spontanée - ... (CDI ou CDD) »).
+  types_contrat: ["CDI"]
   # Régions : ile-de-france, hauts-de-france, auvergne-rhone-alpes, ... (cf. `autopostule regions`)
   regions: ["ile-de-france"]
   departements: []          # ex : ["92", "93"] - plus précis que la région
@@ -45,6 +47,21 @@ scan:
   inclure_emails_nominatifs: false  # prenom.nom@ : désactivé par défaut (RGPD)
   verifier_mx: true                 # nécessite dnspython
   tlds: [".fr", ".com", ".io", ".eu", ".net"]
+
+offres:
+  # Sources d'offres récentes (API officielles, identifiants gratuits à mettre dans .env) :
+  #   france_travail : offres France Travail + sites emploi partenaires (francetravail.io)
+  #   adzuna         : agrégateur de nombreux sites emploi et pages carrières (developer.adzuna.com)
+  sources: ["france_travail", "adzuna"]
+  publiees_depuis_jours: 7     # ne garder que les offres récentes
+  limite: 100                  # offres max par métier et par source
+  chercher_email_rh: true      # offre sans e-mail : cherche l'adresse RH sur le site de l'entreprise
+
+cv_adapte:
+  actif: true                  # un CV PDF adapté à chaque offre / entreprise (nécessite cv.yaml)
+  fichier: "cv/cv.yaml"        # créé avec `autopostule cv-structure`, à compléter
+  titre_selon_offre: true      # le titre du CV devient l'intitulé du poste visé
+  moteur: "modele"             # "ia" : l'accroche du CV est réécrite par Claude pour chaque offre
 
 lettre:
   moteur: "modele"          # "modele" (gratuit, hors-ligne) ou "ia" (Claude, clé API requise)

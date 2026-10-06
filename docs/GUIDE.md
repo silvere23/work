@@ -1,6 +1,7 @@
 # Guide d'utilisation
 
-Ce guide vous accompagne de l'installation au premier envoi. Comptez 15 minutes.
+Ce guide vous accompagne de l'installation au premier envoi. Comptez 30 minutes, dont la création des
+identifiants gratuits des sites d'offres.
 
 ## 1. Installation
 
@@ -31,7 +32,7 @@ Cela crée :
 ## 3. Renseigner votre profil
 
 Dans `config.yaml`, section `profil` : prénom, nom, e-mail, téléphone, ville, titre, années d'expérience,
-type de contrat recherché, disponibilité. Ces informations apparaissent dans l'en-tête de la lettre,
+disponibilité. Ces informations apparaissent dans l'en-tête de la lettre,
 dans l'objet du mail et dans la signature.
 
 `genre` (`M`, `F` ou vide) sert aux accords : « motivé / motivée », « Technicien / Technicienne »…
@@ -93,7 +94,175 @@ mot de passe : si la connexion est refusée, utilisez une autre messagerie.
 | Infomaniak   | `mail.infomaniak.com` | 465 | ssl     |
 | Proton (Bridge) | `127.0.0.1`      | 1025 | starttls |
 
-## 5. Trouver des entreprises
+## 5. Type de poste recherché (CDI, CDD…)
+
+Dans `config.yaml` :
+
+```yaml
+recherche:
+  types_contrat: ["CDI", "CDD"]   # CDI, CDD, interim, alternance, stage, freelance
+```
+
+Ce champ :
+
+- **filtre les offres** : seules les offres de ces types sont gardées (paramètre envoyé à France Travail et
+  Adzuna quand c'est possible, puis vérification locale) ;
+- **apparaît dans les candidatures spontanées** : « Objet : Candidature spontanée - Ingénieur DevOps
+  (CDI ou CDD) », « … pour un poste d'ingénieur DevOps en CDI ou CDD » ;
+- pour une offre, c'est **le contrat de l'offre** qui est repris dans la lettre et le message.
+
+Il se remplace ponctuellement en ligne de commande avec `-t` / `--contrat` (répétable) :
+
+```bash
+autopostule offres rechercher -t alternance
+autopostule generer -t CDI -t CDD
+autopostule auto -t CDD
+```
+
+Liste vide = tous types de contrat.
+
+## 6. CV adapté à chaque candidature
+
+L'outil peut produire **un CV PDF différent pour chaque offre ou entreprise**. Il a besoin pour cela d'un
+CV structuré, `cv/cv.yaml`, qui décrit **tout** votre parcours :
+
+```bash
+autopostule cv-structure      # crée cv/cv.yaml à partir de votre CV (compétences pré-remplies)
+```
+
+Ouvrez `cv/cv.yaml` et complétez-le : titre, accroche, compétences par catégorie, expériences (poste,
+entreprise, lieu, dates, **missions**), formations, certifications, langues. Plus il est complet, mieux
+l'outil peut choisir ce qui correspond à chaque offre. Un exemple commenté :
+`autopostule/templates/cv.exemple.yaml`.
+
+Pour chaque candidature, le CV généré :
+
+| Élément       | Adaptation                                                                       |
+|---------------|----------------------------------------------------------------------------------|
+| Titre         | intitulé de l'offre sans « H/F » (`cv_adapte.titre_selon_offre`) ; métier visé pour une candidature spontanée |
+| Accroche      | votre accroche + « Atouts pour ce poste : … » (ou réécrite par Claude si `cv_adapte.moteur: ia`) |
+| Compétences   | celles demandées par l'offre en premier et **en gras** ; catégories les plus utiles en tête |
+| Expériences   | ordre chronologique conservé ; dans chaque poste, missions les plus pertinentes d'abord |
+| Coordonnées   | depuis `config.yaml` (téléphone, e-mail, ville, LinkedIn, GitHub, permis, disponibilité) |
+
+L'outil **n'ajoute jamais** une compétence que vous n'avez pas : celles que l'offre demande et qui manquent
+à votre CV sont simplement listées pour vous (`autopostule offres voir ID`, fichier `offre.txt` du dossier).
+
+Aperçu du CV adapté à une offre :
+
+```bash
+autopostule offres voir ft:190XKZB --apercu
+```
+
+Sans `cv.yaml`, votre CV d'origine est joint tel quel (renommé `CV_prenom_nom.pdf`).
+
+## 7. Offres d'emploi récentes
+
+### 7.1 Identifiants des sources (gratuits)
+
+**France Travail** (offres déposées chez France Travail et offres de nombreux sites emploi partenaires) :
+
+1. Créez un compte sur <https://francetravail.io> (espace « Développeur / Partenaire »).
+2. Créez une application et abonnez-la à l'API **« Offres d'emploi v2 »**.
+3. Copiez l'identifiant client et la clé secrète dans `.env` :
+   ```
+   FRANCE_TRAVAIL_CLIENT_ID=...
+   FRANCE_TRAVAIL_CLIENT_SECRET=...
+   ```
+
+**Adzuna** (agrégateur de sites emploi et pages carrières) :
+
+1. Inscrivez-vous sur <https://developer.adzuna.com>.
+2. Copiez `Application ID` et `Application Key` dans `.env` :
+   ```
+   ADZUNA_APP_ID=...
+   ADZUNA_APP_KEY=...
+   ```
+
+Une source sans identifiants est simplement ignorée. Choix des sources : `offres.sources` dans
+`config.yaml`, ou `--source france_travail` en ligne de commande.
+
+### 7.2 Rechercher
+
+```bash
+autopostule offres rechercher                                   # critères de config.yaml
+autopostule offres rechercher -m devops -r ile-de-france -t CDI -j 3
+autopostule offres rechercher -m technicien -d 59 -d 62 -t CDD -t interim
+autopostule offres rechercher -m reseau -r hauts-de-france -v Lille
+```
+
+| Option        | Effet                                                         |
+|---------------|---------------------------------------------------------------|
+| `-m`          | métier (requêtes adaptées : « administrateur réseau », « ingénieur réseau »…) |
+| `-r / -d / -v`| région, département, ville                                    |
+| `-t`          | type(s) de contrat                                            |
+| `-j`          | offres publiées depuis N jours (défaut : 7)                   |
+| `-n`          | nombre maximum d'offres par métier et par source              |
+
+Les offres hors sujet (intitulé et compétences sans rapport avec le métier) et les doublons (même offre
+publiée sur plusieurs sources) sont écartés.
+
+### 7.3 Ajouter une offre vue sur LinkedIn, Indeed, un site carrière…
+
+```bash
+# par lien : lecture automatique si le site l'autorise (données « JobPosting » publiées par la plupart des sites)
+autopostule offres ajouter --url https://www.exemple-entreprise.fr/carrieres/admin-sys
+
+# par copier-coller : collez le texte de l'offre dans un fichier
+autopostule offres ajouter --fichier offre.txt --entreprise "Cloudy" --ville Lille --contrat CDI
+autopostule offres ajouter --fichier offre.txt --email recrutement@cloudy.io
+```
+
+LinkedIn et Indeed interdisent la lecture automatique : utilisez `--fichier`. L'adresse e-mail éventuellement
+présente dans le texte est détectée automatiquement.
+
+### 7.4 Préparer les candidatures
+
+```bash
+autopostule offres preparer          # toutes les nouvelles offres
+autopostule offres preparer --ia     # lettres rédigées par Claude
+```
+
+Pour chaque offre :
+
+1. **adresse de candidature** : celle indiquée dans l'offre ; sinon (si `offres.chercher_email_rh: true`)
+   l'entreprise est retrouvée dans la base SIRENE puis son adresse RH publique sur son site ;
+2. **CV adapté** + **lettre adaptée** (intitulé, référence, compétences demandées que vous avez, vos
+   réalisations les plus proches, contrat) dans `donnees/offres/<id>/` ;
+3. avec une adresse : une candidature « brouillon » est créée → `approuver` puis `envoyer` ;
+   sans adresse : l'offre passe au statut `a_postuler_sur_site`, le dossier est prêt.
+
+### 7.5 Offres à déposer sur le site
+
+```bash
+autopostule offres lister -s a_postuler_sur_site
+autopostule offres ouvrir ft:190XKZB      # ouvre l'offre dans le navigateur + chemin du dossier (CV, lettre)
+autopostule offres fait ft:190XKZB        # une fois la candidature déposée
+autopostule offres ignorer ft:190XKZB
+```
+
+Le dépôt sur le site reste manuel : les formulaires (LinkedIn, Indeed, Workday, Taleo…) demandent un compte,
+des captchas et des questions propres à chaque offre, et leur automatisation est interdite par ces plateformes.
+Le dossier généré (CV + lettre adaptés) rend ce dépôt rapide.
+
+### 7.6 Suivi
+
+```bash
+autopostule offres lister                 # toutes les offres et leur statut
+autopostule offres voir ft:190XKZB        # détail, compétences demandées présentes / absentes
+autopostule stats
+```
+
+| Statut                 | Signification                                         |
+|------------------------|-------------------------------------------------------|
+| `nouvelle`             | récupérée, pas encore préparée                        |
+| `preparee`             | candidature par e-mail prête (voir `lister`)          |
+| `postulee`             | candidature envoyée par e-mail                        |
+| `a_postuler_sur_site`  | dossier prêt, à déposer sur le site de l'offre        |
+| `postulee_sur_site`    | déposée par vous sur le site                          |
+| `ignoree`              | écartée                                               |
+
+## 8. Candidatures spontanées : trouver des entreprises
 
 ```bash
 autopostule metiers                     # liste des métiers
@@ -139,7 +308,7 @@ autopostule importer docs/exemples/entreprises.csv
 
 Si l'e-mail est fourni, l'entreprise est prête ; si seul le site est fourni, `scanner` y cherchera une adresse.
 
-## 6. Trouver les adresses de recrutement
+## 9. Candidatures spontanées : trouver les adresses de recrutement
 
 ```bash
 autopostule scanner          # toutes les entreprises en attente
@@ -167,10 +336,11 @@ L'adresse au meilleur score est utilisée. Une seule candidature est préparée 
 > Le site n'est pas toujours retrouvé automatiquement (noms commerciaux différents de la raison sociale).
 > Une partie des sites ne sera donc pas trouvée ; complétez avec l'import CSV.
 
-## 7. Rédiger les lettres
+## 10. Rédiger les lettres
 
 ```bash
-autopostule generer               # moteur « modele » : gratuit, hors ligne
+autopostule generer               # moteur « modele » : gratuit, hors ligne ; CV adapté au métier si cv.yaml
+autopostule generer -t CDI -t CDD # précise le type de poste dans l'objet et le message
 autopostule generer --ia          # rédaction personnalisée par Claude
 autopostule generer -m devops -n 20
 ```
@@ -206,7 +376,7 @@ Copiez `autopostule/templates/lettre.txt.j2` et/ou `mail.txt.j2` dans un dossier
 ce dossier dans `lettre.dossier_modeles`. Variables disponibles : `profil.*`, `entreprise.*`
 (`nom`, `nom_court`, `ville`, `adresse`, `naf`…), `titre`, `metier.*`, `date`, `corps`.
 
-## 8. Relire et approuver
+## 11. Relire et approuver
 
 ```bash
 autopostule lister -s brouillon
@@ -217,7 +387,7 @@ autopostule approuver 12 13 14    # ou : autopostule approuver --tout
 
 Avec `envoi.validation_manuelle: true` (par défaut), **seules les candidatures approuvées partent**.
 
-## 9. Envoyer
+## 12. Envoyer
 
 ```bash
 autopostule envoyer --test        # écrit des .eml dans donnees/envois_test/ (ouvrables dans votre messagerie)
@@ -225,20 +395,22 @@ autopostule envoyer               # demande confirmation, puis envoie
 autopostule envoyer --max 10 -y   # 10 envois maximum, sans confirmation
 ```
 
-Chaque e-mail contient : un court message, votre CV renommé proprement (`CV_jean_dupont.pdf`) et la lettre en
-PDF (ou la lettre complète dans le corps si `joindre_pdf: false`).
+Chaque e-mail contient : un court message, **le CV adapté** à cette candidature (ou votre CV d'origine renommé
+`CV_jean_dupont.pdf` sans `cv.yaml`) et la lettre en PDF (ou la lettre complète dans le corps si
+`joindre_pdf: false`).
 
 Garde-fous :
 
 - plafond quotidien (`max_par_jour`, 40 par défaut) ;
 - délai aléatoire entre deux envois (60 à 180 s) ;
-- aucune entreprise recontactée avant `delai_recontact_jours` (120 jours) ;
+- aucune entreprise recontactée en candidature spontanée avant `delai_recontact_jours` (120 jours) ;
+- une seule candidature par offre ;
 - adresses, domaines et SIREN de la liste d'exclusion ignorés ;
 - arrêt immédiat si le serveur refuse l'authentification, et après 3 échecs consécutifs.
 
 Relancez simplement `autopostule envoyer` chaque jour pour continuer là où vous vous êtes arrêté.
 
-## 10. Après l'envoi
+## 13. Après l'envoi
 
 ```bash
 autopostule stats
@@ -249,16 +421,19 @@ autopostule exclure 123456789 --raison "déjà postulé via leur site"
 
 Répondez rapidement aux recruteurs, et **respectez toute demande de désinscription** (cf. [LEGAL.md](LEGAL.md)).
 
-## 11. Tout automatiser
+## 14. Tout automatiser
 
 ```bash
-autopostule auto -m administrateur_systeme -r hauts-de-france -n 150
+autopostule auto -m administrateur_systeme -r hauts-de-france -t CDI   # offres + spontanées
+autopostule auto --mode offres -m devops -d 92 -j 3                    # offres récentes uniquement
+autopostule auto --mode spontanees -m technicien -r normandie
 autopostule auto -m devops -d 92 --ia --approuver-tout   # sans relecture : à vos risques
 ```
 
 Pour lancer l'envoi chaque matin (Linux/macOS, `crontab -e`) :
 
 ```
+0 8 * * 1-5 cd /chemin/vers/projet && .venv/bin/autopostule offres rechercher -j 1 && .venv/bin/autopostule offres preparer >> donnees/offres.log 2>&1
 30 8 * * 1-5 cd /chemin/vers/projet && .venv/bin/autopostule envoyer -y >> donnees/envoi.log 2>&1
 ```
 
@@ -273,4 +448,8 @@ Sous Windows : Planificateur de tâches → action `C:\chemin\.venv\Scripts\auto
 | `site introuvable` pour beaucoup d'entreprises    | normal pour une partie ; complétez via `importer`               |
 | aucune compétence détectée                       | CV en image (scanné) : exportez-le en PDF texte depuis Word      |
 | erreur 429 de l'API                              | l'outil réessaie automatiquement ; relancez plus tard sinon      |
+| `France Travail ignoré : ... absents`            | ajoutez les identifiants dans `.env` (section 7.1)               |
+| `401` / `invalid_client` France Travail          | vérifiez l'abonnement de votre application à « Offres d'emploi v2 » |
+| `ce site interdit la lecture automatique`        | copiez le texte de l'offre et utilisez `offres ajouter --fichier` |
+| `CV structuré absent`                            | `autopostule cv-structure`, puis complétez `cv/cv.yaml`          |
 | les e-mails arrivent en spam                     | baissez `max_par_jour`, personnalisez la lettre, évitez les liens |
