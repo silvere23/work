@@ -1,0 +1,87 @@
+# =========================================================================== #
+#  autopostule - fichier de configuration
+#  Copiez ce fichier en config.yaml puis remplissez vos informations.
+#  Les secrets (mot de passe SMTP, clé API) vont dans le fichier .env.
+# =========================================================================== #
+
+profil:
+  prenom: "Jean"
+  nom: "Dupont"
+  genre: ""                 # "M", "F" ou vide (accords en écriture inclusive)
+  email: "jean.dupont@example.com"
+  telephone: "06 12 34 56 78"
+  adresse: "12 rue de l'Exemple"
+  code_postal: "75011"
+  ville: "Paris"
+  linkedin: ""              # ex : https://www.linkedin.com/in/jean-dupont
+  github: ""
+  portfolio: ""
+  titre: "Administrateur systèmes et réseaux"
+  annees_experience: 3
+  disponibilite: "immédiatement"
+  mobilite: "Île-de-France"
+  permis: true
+
+cv:
+  fichier: "cv/mon_cv.pdf"  # PDF, DOCX, TXT ou MD - joint à chaque e-mail
+
+recherche:
+  # Métiers ciblés : administrateur_reseau, administrateur_systeme,
+  # technicien_informatique, devops, cybersecurite, developpeur
+  metiers: ["administrateur_systeme"]
+  # Type(s) de poste recherché(s) : CDI, CDD, interim, alternance, stage, freelance
+  # Filtre les offres et apparaît dans les lettres (« Candidature spontanée - ... (CDI ou CDD) »).
+  types_contrat: ["CDI"]
+  # Régions : ile-de-france, hauts-de-france, auvergne-rhone-alpes, ... (cf. `autopostule regions`)
+  regions: ["ile-de-france"]
+  departements: []          # ex : ["92", "93"] - plus précis que la région
+  villes: []                # ex : ["Lille", "Roubaix"] - filtre sur la commune du siège
+  effectif_min: 10          # ignore les toutes petites structures (0 = pas de filtre)
+  naf_supplementaires: []   # codes NAF à ajouter, ex : ["70.22Z"]
+  limite: 200               # nombre max d'entreprises récupérées par recherche
+
+scan:
+  pages_max_par_site: 8
+  delai_entre_requetes: 1.5 # secondes entre deux requêtes sur un même site
+  timeout: 15
+  inclure_emails_nominatifs: false  # prenom.nom@ : désactivé par défaut (RGPD)
+  verifier_mx: true                 # nécessite dnspython
+  tlds: [".fr", ".com", ".io", ".eu", ".net"]
+
+offres:
+  # Sources d'offres récentes (API officielles, identifiants gratuits à mettre dans .env) :
+  #   france_travail : offres France Travail + sites emploi partenaires (francetravail.io)
+  #   adzuna         : agrégateur de nombreux sites emploi et pages carrières (developer.adzuna.com)
+  sources: ["france_travail", "adzuna"]
+  publiees_depuis_jours: 7     # ne garder que les offres récentes
+  limite: 100                  # offres max par métier et par source
+  chercher_email_rh: true      # offre sans e-mail : cherche l'adresse RH sur le site de l'entreprise
+
+cv_adapte:
+  actif: true                  # un CV PDF adapté à chaque offre / entreprise (nécessite cv.yaml)
+  fichier: "cv/cv.yaml"        # créé avec `autopostule cv-structure`, à compléter
+  titre_selon_offre: true      # le titre du CV devient l'intitulé du poste visé
+  moteur: "modele"             # "ia" : l'accroche du CV est réécrite par Claude pour chaque offre
+
+lettre:
+  moteur: "modele"          # "modele" (gratuit, hors-ligne) ou "ia" (Claude, clé API requise)
+  modele_ia: "claude-opus-5-5"
+  joindre_pdf: true         # lettre jointe en PDF + court message dans le corps du mail
+  paragraphe_perso: ""      # phrase ajoutée à toutes les lettres (projet, valeur ajoutée...)
+  dossier_modeles: ""       # dossier contenant vos propres lettre.txt.j2 / mail.txt.j2
+
+envoi:
+  smtp_hote: "smtp.gmail.com"
+  smtp_port: 587
+  securite: "starttls"      # "starttls" (587) ou "ssl" (465)
+  smtp_utilisateur: "jean.dupont@gmail.com"
+  expediteur: ""            # vide = smtp_utilisateur
+  max_par_jour: 40          # restez raisonnable : au-delà, risque de blocage du compte
+  delai_min_s: 60
+  delai_max_s: 180
+  validation_manuelle: true # true = seules les candidatures approuvées partent
+  delai_recontact_jours: 120
+  copie_cachee_a_moi: false
+
+donnees:
+  dossier: "donnees"        # base SQLite, lettres générées, journaux

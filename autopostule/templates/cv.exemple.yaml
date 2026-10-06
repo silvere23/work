@@ -1,0 +1,49 @@
+# =========================================================================== #
+#  CV structuré - sert à produire un CV PDF adapté à chaque offre.
+#  Les coordonnées (nom, téléphone, e-mail, LinkedIn...) viennent de config.yaml.
+#  Écrivez TOUT ce que vous savez faire : l'outil choisit et met en avant ce qui
+#  correspond à chaque offre, mais n'invente jamais rien.
+# =========================================================================== #
+
+titre: "Administrateur systèmes et réseaux"
+accroche: >
+  Administrateur systèmes et réseaux avec 3 ans d'expérience en environnement Windows et Linux,
+  habitué à la virtualisation, à la supervision et au support utilisateurs.
+
+competences:
+  Systèmes: ["Windows Server", "Active Directory", "GPO", "Linux", "Debian", "Red Hat"]
+  Virtualisation & cloud: ["VMware", "Proxmox", "Hyper-V", "Azure"]
+  Réseaux & sécurité: ["Cisco", "VLAN", "VPN", "pfSense", "Fortinet"]
+  Automatisation: ["PowerShell", "Bash", "Ansible", "Git"]
+  Outils: ["Zabbix", "GLPI", "Veeam", "ITIL"]
+
+experiences:
+  - poste: "Administrateur systèmes et réseaux"
+    entreprise: "Entreprise A"
+    lieu: "Paris"
+    debut: "2023"
+    fin: "aujourd'hui"
+    missions:
+      - "Administration de 80 serveurs Windows Server et Linux (Debian, Red Hat)"
+      - "Gestion de l'Active Directory et des GPO pour 400 utilisateurs"
+      - "Migration de l'infrastructure VMware vers Proxmox"
+      - "Mise en place de la supervision Zabbix et des sauvegardes Veeam"
+      - "Automatisation des tâches récurrentes en PowerShell et Ansible"
+  - poste: "Technicien support N2"
+    entreprise: "Entreprise B"
+    lieu: "Nanterre"
+    debut: "2021"
+    fin: "2023"
+    missions:
+      - "Traitement des incidents N2 dans GLPI selon ITIL"
+      - "Déploiement et masterisation de postes Windows 10/11"
+      - "Configuration des switchs Cisco et des VLAN du siège"
+
+formations:
+  - diplome: "BTS SIO option SISR"
+    etablissement: "Lycée Exemple"
+    annee: "2021"
+
+certifications: ["CCNA"]
+langues: ["Anglais : B2 (technique)"]
+centres_interet: []

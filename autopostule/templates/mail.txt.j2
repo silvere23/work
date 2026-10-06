@@ -1,0 +1,27 @@
+Madame, Monsieur,
+
+{% if joindre_pdf -%}
+{% if offre -%}
+Vivement intéressé{{ e }} par votre offre « {{ intitule }} »{% if offre.reference %} (réf. {{ offre.reference }}){% endif %}{% if source_offre %} publiée sur {{ source_offre }}{% endif %}, je vous adresse ma candidature{% if contrat %} pour ce poste en {{ contrat }}{% endif %}.
+{%- else -%}
+Vivement intéressé{{ e }} par {{ entreprise.nom_court }}, je vous adresse ma candidature spontanée pour un poste {{ poste_de }}{% if contrat %} en {{ contrat }}{% endif %}.
+{%- endif %}
+
+{{ resume }}
+
+Vous trouverez ci-joint mon CV ainsi que ma lettre de motivation. Je reste disponible pour un échange à votre convenance.
+{%- else -%}
+{{ lettre_corps }}
+{%- endif %}
+
+
+Bien cordialement,
+
+{{ profil.prenom }} {{ profil.nom }}
+{{ profil.telephone }}
+{{ profil.email }}
+{% if profil.linkedin %}{{ profil.linkedin }}
+{% endif %}{% if profil.github %}{{ profil.github }}
+{% endif %}
+--
+Si vous ne souhaitez plus recevoir de message de ma part, il vous suffit de répondre « STOP » : je ne vous recontacterai pas.
