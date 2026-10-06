@@ -165,7 +165,7 @@ Pour chaque entreprise :
 L'adresse au meilleur score est utilisée. Une seule candidature est préparée par entreprise.
 
 > Le site n'est pas toujours retrouvé automatiquement (noms commerciaux différents de la raison sociale).
-> Comptez 30 à 50 % de réussite ; complétez avec l'import CSV.
+> Une partie des sites ne sera donc pas trouvée ; complétez avec l'import CSV.
 
 ## 7. Rédiger les lettres
 
