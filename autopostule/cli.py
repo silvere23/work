@@ -40,6 +40,8 @@ FRANCE_TRAVAIL_CLIENT_SECRET=
 # Offres d'emploi Adzuna (gratuit) : https://developer.adzuna.com
 ADZUNA_APP_ID=
 ADZUNA_APP_KEY=
+# Offres d'emploi Jooble (gratuit) : https://jooble.org/api/about
+JOOBLE_API_KEY=
 """
 
 
@@ -320,8 +322,14 @@ def _sources(config, choix: list[str] | None = None) -> list:
                 sources.append(mod_offres.SourceAdzuna(identifiant, cle))
             else:
                 print("(Adzuna ignoré : ADZUNA_APP_ID / ADZUNA_APP_KEY absents du fichier .env)")
+        elif nom == "jooble":
+            cle = os.environ.get("JOOBLE_API_KEY")
+            if cle:
+                sources.append(mod_offres.SourceJooble(cle))
+            else:
+                print("(Jooble ignoré : JOOBLE_API_KEY absent du fichier .env)")
         else:
-            raise ValueError(f"Source d'offres inconnue : {nom!r} (france_travail, adzuna)")
+            raise ValueError(f"Source d'offres inconnue : {nom!r} (france_travail, adzuna, jooble)")
     return sources
 
 
@@ -344,6 +352,50 @@ def rechercher_offres(config, base: Base, args) -> int:
     nouvelles = sum(1 for offre in trouvees if base.ajouter_offre({**offre.en_dict(), "cle_doublon": offre.cle_doublon}))
     print(f"{len(trouvees)} offre(s) pertinente(s), dont {nouvelles} nouvelle(s).")
     return nouvelles
+
+
+def importer_alertes(config, base: Base, jours: int | None = None, fichiers: list[str] | None = None) -> int:
+    """Ajoute les offres reçues par alerte e-mail (Indeed, LinkedIn, Welcome to the Jungle, Monster, Google...)."""
+    from . import alertes
+
+    reglages = config["offres"].get("alertes") or {}
+    jours = jours or int(reglages.get("jours") or config["offres"].get("publiees_depuis_jours") or 7)
+    if fichiers:
+        resultat = alertes.lire_fichiers([Path(f) for f in fichiers])
+    else:
+        hote = alertes.hote_imap(config)
+        utilisateur = config["envoi"].get("smtp_utilisateur") or config.profil.get("email")
+        print(f"Lecture des alertes des {jours} derniers jours dans {utilisateur} ({hote}, lecture seule)...")
+        try:
+            resultat = alertes.lire_boite(hote, utilisateur, config.mot_de_passe_smtp, jours,
+                                          reglages.get("dossier") or "INBOX", int(reglages.get("imap_port") or 993))
+        except (OSError, alertes.imaplib.IMAP4.error) as erreur:
+            raise ValueError(f"lecture de la boîte e-mail impossible ({erreur}). Gmail : vérifiez que l'accès IMAP "
+                             "est activé et utilisez le mot de passe d'application. Vous pouvez aussi enregistrer "
+                             "les e-mails d'alerte (.eml) et utiliser --fichier.") from None
+    contrats = contrats_vises(config)
+    cibles = list(dict.fromkeys([*_liste(config["recherche"].get("metiers")), *METIERS]))
+    nouvelles = ecartees = 0
+    for offre in alertes.iterer(resultat.offres):
+        if contrats and offre.type_contrat and offre.type_contrat not in contrats:
+            ecartees += 1
+            continue
+        offre.metier = mod_offres.deduire_metier(offre, cibles)[0] or cibles[0]
+        if base.ajouter_offre({**offre.en_dict(), "cle_doublon": offre.cle_doublon}):
+            nouvelles += 1
+            print(f"  + {offre.titre[:55]:<55} {offre.entreprise[:25]:<25} [{offre.source}]")
+    print(f"{resultat.messages} e-mail(s) d'alerte lu(s), {len(resultat.offres)} offre(s) trouvée(s), "
+          f"{nouvelles} nouvelle(s)" + (f", {ecartees} écartée(s) (type de contrat)" if ecartees else "") + ".")
+    if resultat.messages and not resultat.offres:
+        print("Aucune offre reconnue dans ces e-mails : envoyez un exemple (.eml) pour améliorer la détection.")
+    return nouvelles
+
+
+def cmd_offres_alertes(args) -> int:
+    config = charger(args.config)
+    _appliquer_contrats(config, args)
+    importer_alertes(config, _base(config), args.jours, args.fichier)
+    return 0
 
 
 def cmd_offres_rechercher(args) -> int:
@@ -698,8 +750,16 @@ def construire_parseur() -> argparse.ArgumentParser:
     filtres(s)
     option_contrat(s)
     s.add_argument("-j", "--jours", type=int, help="publiées depuis N jours (défaut : offres.publiees_depuis_jours)")
-    s.add_argument("--source", action="append", choices=["france_travail", "adzuna"])
+    s.add_argument("--source", action="append", choices=["france_travail", "adzuna", "jooble"])
     s.set_defaults(func=cmd_offres_rechercher)
+
+    s = so.add_parser("alertes", help="importe les offres de vos alertes e-mail (Indeed, LinkedIn, Welcome to "
+                                      "the Jungle, Monster, Google, HelloWork, Apec...)")
+    s.add_argument("-j", "--jours", type=int, help="e-mails reçus depuis N jours (défaut : 7)")
+    s.add_argument("--fichier", action="append", help="e-mail d'alerte enregistré (.eml), répétable ; "
+                                                      "sans cette option, lecture de la boîte e-mail (IMAP)")
+    option_contrat(s)
+    s.set_defaults(func=cmd_offres_alertes)
 
     s = so.add_parser("ajouter", help="ajoute une offre trouvée ailleurs (LinkedIn, Indeed, site carrière...)")
     s.add_argument("--url", help="lien de l'offre (lecture automatique si le site l'autorise)")
@@ -745,7 +805,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     option_contrat(s)
     s.add_argument("--mode", choices=["tout", "offres", "spontanees"], default="tout")
     s.add_argument("-j", "--jours", type=int)
-    s.add_argument("--source", action="append", choices=["france_travail", "adzuna"])
+    s.add_argument("--source", action="append", choices=["france_travail", "adzuna", "jooble"])
     s.add_argument("--ia", action="store_true")
     s.add_argument("--test", action="store_true", help="envoi simulé (.eml)")
     s.add_argument("--approuver-tout", action="store_true",

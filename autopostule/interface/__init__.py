@@ -18,7 +18,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 
 from .. import __version__, cv_adapte
 from ..candidature import Atelier, offre_depuis_ligne
-from ..cli import ENV_EXEMPLE, generer, preparer_offres, rechercher, rechercher_offres, scanner
+from ..cli import ENV_EXEMPLE, generer, importer_alertes, preparer_offres, rechercher, rechercher_offres, scanner
 from ..config import EXEMPLE, ErreurConfig, charger, contrats_vises, lire_yaml
 from ..cv import analyser_fichier
 from ..envoi import envoyer_candidatures
@@ -34,6 +34,7 @@ SECRETS = {
     "FRANCE_TRAVAIL_CLIENT_SECRET": "France Travail - clé secrète",
     "ADZUNA_APP_ID": "Adzuna - Application ID",
     "ADZUNA_APP_KEY": "Adzuna - Application Key",
+    "JOOBLE_API_KEY": "Jooble - clé API",
     "ANTHROPIC_API_KEY": "Claude (facultatif, rédaction par IA)",
 }
 STATUTS_CANDIDATURE = ["brouillon", "approuvee", "envoyee", "echec", "ignoree"]
@@ -410,10 +411,13 @@ def creer_app(dossier: Path | None = None, gestionnaire: Gestionnaire | None = N
         cfg = config()
         statut = request.args.get("statut") or None
         env = lire_env(app.config["DOSSIER"] / ".env")
-        sources = {"france_travail": bool(env.get("FRANCE_TRAVAIL_CLIENT_ID")), "adzuna": bool(env.get("ADZUNA_APP_ID"))}
+        sources = {"france_travail": bool(env.get("FRANCE_TRAVAIL_CLIENT_ID")), "adzuna": bool(env.get("ADZUNA_APP_ID")),
+                   "jooble": bool(env.get("JOOBLE_API_KEY"))}
         return render_template("offres.html", lignes=base(cfg).offres(statut, 500), statut=statut,
                                statuts=STATUTS_OFFRE, sources=sources, r=cfg["recherche"],
-                               jours=cfg["offres"].get("publiees_depuis_jours") or 7, contrats=contrats_vises(cfg))
+                               jours=cfg["offres"].get("publiees_depuis_jours") or 7, contrats=contrats_vises(cfg),
+                               smtp=bool(env.get("AUTOPOSTULE_SMTP_PASSWORD")),
+                               boite=cfg["envoi"].get("smtp_utilisateur") or cfg.profil.get("email"))
 
     @app.post("/offres/rechercher")
     def lancer_recherche_offres():
@@ -431,6 +435,25 @@ def creer_app(dossier: Path | None = None, gestionnaire: Gestionnaire | None = N
             print("\nÉtape suivante : « Préparer les candidatures » (CV + lettre pour chaque offre).")
 
         return lancer("Recherche d'offres d'emploi", travail)
+
+    @app.post("/offres/alertes")
+    def lancer_import_alertes():
+        dossier_ = app.config["DOSSIER"]
+        jours = _entier(request.form.get("jours")) or None
+        fichiers = []
+        for fichier in request.files.getlist("fichiers"):
+            if fichier and fichier.filename:
+                cible = dossier_ / "donnees" / "alertes" / Path(fichier.filename).name
+                cible.parent.mkdir(parents=True, exist_ok=True)
+                fichier.save(cible)
+                fichiers.append(str(cible))
+
+        def travail():
+            cfg = charger(dossier_ / "config.yaml")
+            importer_alertes(cfg, base(cfg), jours, fichiers or None)
+            print("\nÉtape suivante : « Préparer les nouvelles offres » (CV + lettre pour chaque offre).")
+
+        return lancer("Import des alertes e-mail", travail)
 
     @app.post("/offres/ajouter")
     def ajouter_offre():

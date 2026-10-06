@@ -151,16 +151,23 @@ def lire_yaml(chemin: Path) -> dict:
         raise ErreurConfig(f"Le fichier {chemin} est mal écrit{ligne}.{extrait}{conseil}") from None
 
 
+def charger_env(chemin: Path) -> None:
+    """Charge les secrets du fichier .env. Une ligne vide (« CLE= ») ne masque pas une valeur déjà définie."""
+    try:
+        from dotenv import dotenv_values
+    except ImportError:  # pragma: no cover - python-dotenv est une dépendance
+        return
+    if chemin.exists():
+        for cle, valeur in dotenv_values(chemin).items():
+            if valeur:
+                os.environ[cle] = valeur
+
+
 def charger(chemin: str | Path = "config.yaml") -> Config:
     chemin = Path(chemin).resolve()
     if not chemin.exists():
         raise ErreurConfig(f"Fichier de configuration introuvable : {chemin}. Lancez `autopostule init`.")
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(chemin.parent / ".env")
-    except ImportError:  # pragma: no cover - python-dotenv est une dépendance
-        pass
+    charger_env(chemin.parent / ".env")
     defauts = _defauts()
     utilisateur = lire_yaml(chemin)
     return Config(_fusion(defauts, utilisateur), chemin)

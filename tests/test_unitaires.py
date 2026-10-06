@@ -310,3 +310,14 @@ def test_textes_a_remplacer_detectes(tmp_path):
                                   "telephone": "07 50 00 19 16", "adresse": "TON ADRESSE",
                                   "linkedin": "https://www.linkedin.com/in/TON-PROFIL"}}, tmp_path)
     assert sorted(cfg.valeurs_exemple()) == ["adresse", "linkedin"]
+
+
+def test_env_vide_ne_masque_pas(tmp_path, monkeypatch):
+    from autopostule.config import charger_env
+
+    monkeypatch.delenv("AUTOPOSTULE_SMTP_PASSWORD", raising=False)
+    (tmp_path / ".env").write_text("AUTOPOSTULE_SMTP_PASSWORD=\nJOOBLE_API_KEY=abc\n", encoding="utf-8")
+    monkeypatch.setenv("JOOBLE_API_KEY", "")
+    charger_env(tmp_path / ".env")
+    import os
+    assert "AUTOPOSTULE_SMTP_PASSWORD" not in os.environ and os.environ["JOOBLE_API_KEY"] == "abc"

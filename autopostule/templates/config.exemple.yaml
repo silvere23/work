@@ -55,7 +55,8 @@ offres:
   # Sources d'offres récentes (API officielles, identifiants gratuits à mettre dans .env) :
   #   france_travail : offres France Travail + sites emploi partenaires (francetravail.io)
   #   adzuna         : agrégateur de nombreux sites emploi et pages carrières (developer.adzuna.com)
-  sources: ["france_travail", "adzuna"]
+  #   jooble         : agrégateur de nombreux sites emploi, avec le site d'origine (jooble.org/api/about)
+  sources: ["france_travail", "adzuna", "jooble"]
   publiees_depuis_jours: 7     # ne garder que les offres récentes
   limite: 100                  # offres max par métier et par source
   chercher_email_rh: true      # offre sans e-mail : cherche l'adresse RH sur le site de l'entreprise

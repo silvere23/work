@@ -170,3 +170,17 @@ def test_dossier_existant_conserve(client):
     poster(client, "/dossier", {"chemin": str(client.dossier)})
     assert "Ancien" in (client.dossier / "config.yaml").read_text(encoding="utf-8")
     assert re.search(r"Bonjour\s+Ancien", client.get("/").get_data(as_text=True))
+
+
+def test_import_alertes_depuis_interface(client):
+    from tests.test_alertes import LINKEDIN, courriel
+
+    poster(client, "/dossier", {"chemin": str(client.dossier)})
+    page = client.get("/offres").get_data(as_text=True)
+    assert "Importer mes alertes" in page and "Jooble" in page
+    eml = io.BytesIO(bytes(courriel("jobalerts-noreply@linkedin.com", LINKEDIN)))
+    tache = attendre_tache(client, poster(client, "/offres/alertes", {"fichiers": (eml, "alerte.eml")},
+                                          content_type="multipart/form-data"))
+    assert tache.etat == "terminee", tache.lignes
+    titres = [o["titre"] for o in Base(client.dossier / "donnees" / "autopostule.db").offres()]
+    assert "Ingénieur DevOps H/F" in titres

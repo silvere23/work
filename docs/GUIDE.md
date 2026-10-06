@@ -234,6 +234,11 @@ Sans `cv.yaml`, votre CV d'origine est joint tel quel (renommé `CV_prenom_nom.p
    ADZUNA_APP_KEY=...
    ```
 
+**Jooble** (agrégateur de sites emploi ; chaque offre indique son site d'origine) :
+
+1. Demandez une clé sur <https://jooble.org/api/about>.
+2. Dans `.env` : `JOOBLE_API_KEY=...`
+
 Une source sans identifiants est simplement ignorée. Choix des sources : `offres.sources` dans
 `config.yaml`, ou `--source france_travail` en ligne de commande.
 
@@ -271,7 +276,36 @@ autopostule offres ajouter --fichier offre.txt --email recrutement@cloudy.io
 LinkedIn et Indeed interdisent la lecture automatique : utilisez `--fichier`. L'adresse e-mail éventuellement
 présente dans le texte est détectée automatiquement.
 
-### 7.4 Préparer les candidatures
+### 7.4 Indeed, LinkedIn, Welcome to the Jungle, Monster, Google… : vos alertes e-mail
+
+Ces plateformes interdisent qu'un robot parcoure leurs pages, mais elles vous envoient elles-mêmes les offres
+si vous créez une **alerte emploi**. L'outil lit ces e-mails dans votre boîte (en lecture seule : rien n'est
+modifié ni supprimé).
+
+1. Sur chaque plateforme, faites une recherche avec vos critères (métier, ville, contrat) puis activez
+   « Créer une alerte » / « Recevoir les offres par e-mail », sur l'adresse configurée dans l'outil.
+   Pour Google : recherchez « offres d'emploi administrateur système Paris » puis activez le bouton d'alerte
+   de l'encadré Emplois.
+2. Gmail : l'accès IMAP est activé par défaut ; le **mot de passe d'application** utilisé pour l'envoi sert
+   aussi à la lecture.
+3. Importez :
+   ```bash
+   autopostule offres alertes            # e-mails des 7 derniers jours
+   autopostule offres alertes -j 3 -t CDI
+   autopostule offres alertes --fichier alerte_indeed.eml   # e-mail enregistré (Outlook, autre messagerie)
+   ```
+   ou, dans l'interface, **Offres d'emploi → Importer mes alertes**.
+
+Plateformes reconnues : Indeed, LinkedIn, Welcome to the Jungle, Monster, Google, HelloWork, Apec, Glassdoor,
+Jobteaser, Cadremploi, France Travail. Pour chaque offre, l'outil récupère l'intitulé, l'entreprise, le lieu et
+le lien. Le contenu complet des offres n'est pas dans l'e-mail : la lettre s'appuie sur l'intitulé et les
+compétences de votre CV liées au métier. Si une alerte n'est pas reconnue, enregistrez l'e-mail (.eml) et
+envoyez-le pour améliorer la détection.
+
+Postuler : si l'entreprise est retrouvée et publie une adresse RH, la candidature part par e-mail ; sinon le
+dossier (CV + lettre adaptés) est prêt et vous postulez sur la plateforme via le lien de l'offre.
+
+### 7.5 Préparer les candidatures
 
 ```bash
 autopostule offres preparer          # toutes les nouvelles offres
@@ -287,7 +321,7 @@ Pour chaque offre :
 3. avec une adresse : une candidature « brouillon » est créée → `approuver` puis `envoyer` ;
    sans adresse : l'offre passe au statut `a_postuler_sur_site`, le dossier est prêt.
 
-### 7.5 Offres à déposer sur le site
+### 7.6 Offres à déposer sur le site
 
 ```bash
 autopostule offres lister -s a_postuler_sur_site
@@ -300,7 +334,7 @@ Le dépôt sur le site reste manuel : les formulaires (LinkedIn, Indeed, Workday
 des captchas et des questions propres à chaque offre, et leur automatisation est interdite par ces plateformes.
 Le dossier généré (CV + lettre adaptés) rend ce dépôt rapide.
 
-### 7.6 Suivi
+### 7.7 Suivi
 
 ```bash
 autopostule offres lister                 # toutes les offres et leur statut

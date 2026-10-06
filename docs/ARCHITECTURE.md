@@ -6,7 +6,8 @@
 autopostule/
 ├── cli.py            # commandes (argparse) et enchaînement des étapes
 ├── candidature.py    # préparation d'une candidature (offre ou spontanée) : e-mail, CV adapté, lettre
-├── offres.py         # sources d'offres (France Travail, Adzuna, URL, texte), filtres, mots-clés, métier
+├── offres.py         # sources d'offres (France Travail, Adzuna, Jooble, URL, texte), filtres, mots-clés, métier
+├── alertes.py        # offres des alertes e-mail (Indeed, LinkedIn, WTTJ, Monster, Google...) : IMAP / .eml
 ├── cv_adapte.py      # CV structuré (cv.yaml) -> CV PDF adapté à une offre
 ├── ia.py             # appel à Claude (lettres, accroche du CV)
 ├── pdfutil.py        # mise en page PDF commune (polices Unicode, translittération)
@@ -121,6 +122,16 @@ maximale de page (2 Mo), et n'accepte que du HTML/texte.
   `cle_doublon` = intitulé nettoyé + entreprise + ville).
 - `mots_cles` : compétences du référentiel et du CV citées par l'offre, classées par fréquence (bonus si
   présentes dans l'intitulé). Elles pilotent le CV adapté et la lettre.
+
+## Alertes e-mail
+
+`alertes.lire_boite` se connecte en IMAP SSL, ouvre le dossier en **lecture seule** (`select(readonly=True)`,
+`BODY.PEEK` : les e-mails restent non lus), cherche les messages récents de chaque domaine de `PLATEFORMES`,
+puis `offres_du_message` identifie la plateforme par l'expéditeur et `extraire_offres` parcourt les liens du
+HTML : un lien est une offre si son URL correspond aux motifs de la plateforme (`/jobs/view/`, `viewjob`...)
+ou si son texte ressemble à un intitulé de poste (liens de suivi). Le bloc qui entoure le lien donne
+l'entreprise et le lieu ; les lignes parasites (« Candidature simplifiée », salaires, « il y a 2 jours ») sont
+écartées ; le type de contrat est cherché dans tout le bloc. Les e-mails en texte brut sont convertis en liens.
 
 ## CV adapté
 

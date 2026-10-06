@@ -26,7 +26,9 @@ services utilisés, et à préserver votre réputation auprès des recruteurs et
   les comptes concernés (LinkedIn a poursuivi en justice des sociétés d'extraction de données). L'outil ne
   les interroge donc pas automatiquement et ne remplit pas leurs formulaires : ajoutez leurs offres avec
   `offres ajouter --fichier` (texte copié) et déposez la candidature vous-même avec le dossier préparé.
-  Beaucoup de ces offres sont aussi diffusées sur France Travail ou référencées par Adzuna.
+  Beaucoup de ces offres sont aussi diffusées sur France Travail ou référencées par Adzuna et Jooble.
+- **Alertes e-mail** : les offres que ces plateformes vous envoient sont vos e-mails ; l'outil les lit dans
+  votre boîte, en lecture seule, sans se connecter aux plateformes.
 
 ## Conservation des données
 

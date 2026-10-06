@@ -3,9 +3,10 @@
 **Automatisez vos candidatures dans l'informatique**, sur deux fronts :
 
 1. **Offres d'emploi récentes** : l'outil récupère les offres publiées ces derniers jours (France Travail et
-   ses sites partenaires, Adzuna qui agrège de nombreux sites emploi, plus toute offre que vous ajoutez depuis
-   LinkedIn, Indeed, un site carrière…), filtrées par **métier**, **zone géographique** et **type de contrat**
-   (CDI, CDD, intérim, alternance, stage, freelance).
+   ses sites partenaires, Adzuna et Jooble qui agrègent de nombreux sites emploi), celles de **vos alertes
+   e-mail Indeed, LinkedIn, Welcome to the Jungle, Monster, Google, HelloWork, Apec…**, et toute offre que vous
+   ajoutez, filtrées par **métier**, **zone géographique** et **type de contrat** (CDI, CDD, intérim,
+   alternance, stage, freelance).
 2. **Candidatures spontanées** : il trouve des entreprises par métier et par zone (base SIRENE) et récupère
    leurs **adresses de recrutement publiques**.
 
@@ -111,9 +112,10 @@ autopostule auto -m administrateur_systeme -r hauts-de-france -t CDI
 
 - ✅ **Offres récentes** via les **API officielles** France Travail (offres déposées + sites partenaires) et
   Adzuna (agrégateur de sites emploi et pages carrières), filtrées par métier, zone, ancienneté et contrat.
-- ✅ **Offres LinkedIn, Indeed, Welcome to the Jungle…** : ajoutez-les par lien (si le site autorise la
-  lecture automatique) ou par copier-coller du texte (`offres ajouter --fichier`) ; elles reçoivent le même
-  traitement (CV + lettre adaptés).
+- ✅ **Offres Indeed, LinkedIn, Welcome to the Jungle, Monster, Google, HelloWork, Apec, Glassdoor…** : créez
+  des alertes emploi par e-mail sur ces plateformes ; `autopostule offres alertes` (ou le bouton « Importer mes
+  alertes ») lit ces e-mails dans votre boîte, en lecture seule, et ajoute les offres. Vous pouvez aussi en
+  ajouter une par lien ou par copier-coller.
 - ✅ **CV adapté à chaque offre** : titre du poste visé, compétences demandées en tête et en gras, missions
   les plus pertinentes en premier ; les compétences demandées que vous n'avez pas sont **signalées, jamais
   ajoutées**.
@@ -123,9 +125,11 @@ autopostule auto -m administrateur_systeme -r hauts-de-france -t CDI
   publique retrouvée sur le site de l'entreprise) ; sinon dossier prêt + ouverture du lien.
 - ✅ Garde-fous : validation manuelle, plafond quotidien, délais aléatoires, mode test, pas de double envoi,
   liste d'exclusion, arrêt automatique en cas d'erreurs SMTP.
-- ❌ **Pas de robot sur LinkedIn / Indeed** (ni extraction automatique, ni dépôt automatique de candidatures
-  via leurs formulaires) : leurs conditions d'utilisation l'interdisent, ils détectent ces robots et
-  suspendent les comptes concernés. Voir [docs/LEGAL.md](docs/LEGAL.md).
+- ❌ **Pas de robot sur LinkedIn, Indeed, Monster, Welcome to the Jungle ou Google** (ni extraction
+  automatique de leurs pages, ni dépôt automatique de candidatures via leurs formulaires) : leurs conditions
+  d'utilisation l'interdisent, ils détectent ces robots et suspendent les comptes concernés ; Google Jobs n'a
+  pas d'API publique. Les alertes e-mail donnent accès à leurs offres sans enfreindre ces règles.
+  Voir [docs/LEGAL.md](docs/LEGAL.md).
 
 ## Tests
 

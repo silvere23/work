@@ -5,6 +5,10 @@ Sources :
   sites emploi partenaires qu'il agrège. Inscription gratuite : https://francetravail.io
 - Adzuna (API officielle) : agrégateur qui référence les offres de nombreux sites emploi et pages carrières.
   Clé gratuite : https://developer.adzuna.com
+- Jooble (API officielle) : agrégateur d'offres de nombreux sites emploi, avec le site d'origine de chaque
+  offre. Clé gratuite : https://jooble.org/api/about
+- Alertes e-mail (module `alertes`) : offres reçues d'Indeed, LinkedIn, Welcome to the Jungle, Monster,
+  Google, HelloWork, Apec... dans la boîte e-mail de l'utilisateur.
 - Import manuel : URL d'une offre (lecture des données structurées schema.org/JobPosting publiées par la
   plupart des sites) ou fichier texte (copier-coller depuis n'importe quelle plateforme, LinkedIn compris).
 
@@ -19,6 +23,7 @@ import json
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Iterator
 
 import requests
@@ -31,6 +36,7 @@ from .web import Navigateur
 URL_JETON_FT = "https://entreprise.francetravail.fr/connexion/oauth2/access_token"
 URL_OFFRES_FT = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
 URL_ADZUNA = "https://api.adzuna.com/v1/api/jobs/fr/search/{page}"
+URL_JOOBLE = "https://jooble.org/api/{cle}"
 
 CONTRATS_FT = {"CDI": "CDI", "CDD": "CDD", "interim": "MIS", "freelance": "LIB"}
 PUBLIEES_DEPUIS_FT = (1, 3, 7, 14, 31)  # seules valeurs acceptées par l'API
@@ -344,6 +350,66 @@ def convertir_adzuna(brut: dict) -> Offre:
         type_contrat=contrat,
         date_publication=brut.get("created") or "",
         salaire=salaire,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Jooble
+# --------------------------------------------------------------------------- #
+
+class SourceJooble:
+    nom = "Jooble"
+
+    def __init__(self, cle: str, session: requests.Session | None = None, url: str | None = None):
+        self.cle = cle
+        self.session = session or requests.Session()
+        self.url = url or URL_JOOBLE
+
+    def rechercher(self, requete: str, lieux: list[str], contrats: list[str], jours: int,
+                   limite: int) -> Iterator[Offre]:
+        depuis = (datetime.now(timezone.utc) - timedelta(days=jours)).date().isoformat()
+        for lieu in lieux or ["France"]:
+            n, page, attentes = 0, 1, 0
+            while n < limite:
+                r = self.session.post(self.url.format(cle=self.cle), timeout=30,
+                                      json={"keywords": requete, "location": lieu, "page": str(page),
+                                            "ResultOnPage": "50"})
+                if r.status_code == 429 and attentes < 3:
+                    attentes += 1
+                    time.sleep(3 * attentes)
+                    continue
+                r.raise_for_status()
+                resultats = r.json().get("jobs") or []
+                for brut in resultats:
+                    offre = convertir_jooble(brut)
+                    if offre.date_publication and offre.date_publication[:10] < depuis:
+                        continue  # trop ancienne
+                    yield offre
+                    n += 1
+                    if n >= limite:
+                        break
+                if len(resultats) < 20:
+                    break
+                page += 1
+                time.sleep(0.5)
+
+
+def convertir_jooble(brut: dict) -> Offre:
+    titre = texte_brut(brut.get("title") or "")
+    description = texte_brut(brut.get("snippet") or "")
+    origine = (brut.get("source") or "").strip()
+    return Offre(
+        id=f"jooble:{brut.get('id') or hashlib.sha1((brut.get('link') or titre).encode()).hexdigest()[:12]}",
+        source=f"Jooble ({origine})" if origine else "Jooble",
+        titre=titre,
+        entreprise=(brut.get("company") or "").strip(),
+        description=description,
+        url=brut.get("link") or "",
+        email=email_dans_texte(description),
+        ville=(brut.get("location") or "").split(",")[0].strip(),
+        type_contrat=normaliser_contrat(brut.get("type") or "") or contrat_dans_texte(titre, description),
+        date_publication=brut.get("updated") or "",
+        salaire=(brut.get("salary") or "").strip(),
     )
 
 

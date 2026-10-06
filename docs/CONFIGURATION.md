@@ -71,7 +71,11 @@ Codes NAF utilisés par défaut (voir `autopostule metiers`) :
 
 | Clé                     | Défaut                          | Description                                          |
 |-------------------------|---------------------------------|------------------------------------------------------|
-| `sources`               | `[france_travail, adzuna]`      | sources interrogées (identifiants dans `.env`)        |
+| `sources`               | `[france_travail, adzuna, jooble]` | sources interrogées (identifiants dans `.env`)     |
+| `alertes.jours`         | `7`                             | `offres alertes` : e-mails reçus depuis N jours       |
+| `alertes.imap_hote`     | déduit du SMTP (`imap.gmail.com`) | serveur IMAP de lecture des alertes                 |
+| `alertes.imap_port`     | `993`                           | port IMAP (SSL)                                       |
+| `alertes.dossier`       | `INBOX`                         | dossier de la boîte où arrivent les alertes           |
 | `publiees_depuis_jours` | `7`                             | ancienneté maximale (France Travail arrondit à 1, 3, 7, 14 ou 31 jours) |
 | `limite`                | `100`                           | offres max par métier et par source                   |
 | `chercher_email_rh`     | `true`                          | offre sans e-mail : recherche de l'entreprise (SIRENE) puis de son adresse RH publique |
@@ -137,3 +141,7 @@ Les requêtes envoyées pour chaque métier sont définies dans `referentiel.MET
 | `ANTHROPIC_API_KEY`         | clé API Claude (mode IA uniquement)                 |
 | `FRANCE_TRAVAIL_CLIENT_ID` / `FRANCE_TRAVAIL_CLIENT_SECRET` | application francetravail.io abonnée à « Offres d'emploi v2 » |
 | `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | identifiants developer.adzuna.com            |
+| `JOOBLE_API_KEY`            | clé jooble.org/api/about                            |
+
+Une ligne vide dans `.env` (`CLE=`) est ignorée ; une valeur renseignée dans `.env` est prioritaire sur une
+variable d'environnement du même nom.

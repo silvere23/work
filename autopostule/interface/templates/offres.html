@@ -3,14 +3,14 @@
 {% block titre %}Offres d'emploi{% endblock %}
 {% block contenu %}
 <h1>Offres d'emploi</h1>
-<p class="sous-titre">Offres récentes de France Travail (et ses sites partenaires) et d'Adzuna (agrégateur de sites emploi),
-  plus celles que vous ajoutez depuis LinkedIn, Indeed ou un site carrière.</p>
+<p class="sous-titre">Offres récentes de France Travail (et ses sites partenaires), d'Adzuna et de Jooble (agrégateurs de sites emploi),
+  de vos alertes e-mail (Indeed, LinkedIn, Welcome to the Jungle, Monster, Google…) et celles que vous ajoutez à la main.</p>
 
 <div class="grille-2">
   <div class="carte">
     <h2>Rechercher des offres récentes</h2>
-    {% if not sources.france_travail and not sources.adzuna %}
-      <div class="message alerte">Aucune source configurée : ajoutez vos identifiants gratuits France Travail et/ou Adzuna
+    {% if not sources.france_travail and not sources.adzuna and not sources.jooble %}
+      <div class="message alerte">Aucune source configurée : ajoutez vos identifiants gratuits France Travail, Adzuna ou Jooble
         dans <a href="{{ url_for('profil') }}">Profil & réglages</a>.</div>
     {% endif %}
     <form method="post" action="{{ url_for('lancer_recherche_offres') }}">
@@ -23,8 +23,27 @@
       <div class="cases" style="margin-top:10px">
         <label><input type="checkbox" name="sources" value="france_travail" {{ 'checked' if sources.france_travail }} {{ 'disabled' if not sources.france_travail }}> France Travail</label>
         <label><input type="checkbox" name="sources" value="adzuna" {{ 'checked' if sources.adzuna }} {{ 'disabled' if not sources.adzuna }}> Adzuna</label>
+        <label><input type="checkbox" name="sources" value="jooble" {{ 'checked' if sources.jooble }} {{ 'disabled' if not sources.jooble }}> Jooble</label>
       </div>
-      <div class="actions"><button {{ 'disabled' if tache_courante or not (sources.france_travail or sources.adzuna) }}>Rechercher</button></div>
+      <div class="actions"><button {{ 'disabled' if tache_courante or not (sources.france_travail or sources.adzuna or sources.jooble) }}>Rechercher</button></div>
+    </form>
+  </div>
+
+  <div class="carte">
+    <h2>Mes alertes e-mail</h2>
+    <p>Indeed, LinkedIn, Welcome to the Jungle, Monster, Google, HelloWork, Apec, Glassdoor… : créez sur chaque plateforme
+      une <strong>alerte emploi par e-mail</strong> avec vos critères. L'outil lit ces e-mails dans votre boîte
+      ({{ boite or 'votre adresse' }}, en lecture seule) et ajoute les offres.</p>
+    {% if not smtp %}<div class="message alerte">Renseignez d'abord votre mot de passe d'application dans
+      <a href="{{ url_for('profil') }}">Profil & réglages</a> (le même sert à lire et à envoyer).</div>{% endif %}
+    <form method="post" action="{{ url_for('lancer_import_alertes') }}" enctype="multipart/form-data">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <div class="ligne">
+        <div><label>E-mails reçus depuis (jours)</label><input type="number" min="1" max="60" name="jours" value="{{ jours }}"></div>
+      </div>
+      <label>… ou des e-mails d'alerte enregistrés (.eml)</label>
+      <input type="file" name="fichiers" accept=".eml" multiple>
+      <div class="actions"><button {{ 'disabled' if tache_courante }}>Importer mes alertes</button></div>
     </form>
   </div>
 
