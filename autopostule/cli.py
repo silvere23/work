@@ -98,6 +98,17 @@ def cmd_init(args) -> int:
     return 0
 
 
+def cmd_interface(args) -> int:
+    """Ouvre l'interface graphique dans le navigateur."""
+    from .interface import lancer_serveur
+
+    dossier = Path(args.dossier).expanduser() if args.dossier else None
+    if dossier is None and Path(args.config).exists():
+        dossier = Path(args.config).resolve().parent
+    lancer_serveur(dossier, port=args.port, ouvrir=not args.sans_navigateur)
+    return 0
+
+
 def cmd_metiers(args) -> int:
     for m in METIERS.values():
         print(f"{m.cle:<26} {m.titre}")
@@ -599,6 +610,13 @@ def construire_parseur() -> argparse.ArgumentParser:
     s.add_argument("dossier", nargs="?", default=".")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
+
+    s = sous.add_parser("interface", help="ouvre l'interface graphique dans le navigateur")
+    s.add_argument("--dossier", help="dossier de travail (défaut : le dernier utilisé, ou le dossier courant "
+                                     "s'il contient config.yaml)")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--sans-navigateur", action="store_true", help="ne pas ouvrir le navigateur automatiquement")
+    s.set_defaults(func=cmd_interface)
 
     sous.add_parser("metiers", help="liste les métiers disponibles").set_defaults(func=cmd_metiers)
     sous.add_parser("regions", help="liste les régions et départements").set_defaults(func=cmd_regions)

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titre %}Analyse du CV{% endblock %}
+{% block contenu %}
+<h1>Ce que l'outil comprend de votre CV</h1>
+<div class="grille-2">
+  <div class="carte">
+    <h2>Coordonnées détectées</h2>
+    <p>E-mail : <strong>{{ analyse.email or '-' }}</strong>{% if analyse.email and analyse.email != profil.email %} <span class="pastille alerte">différent du profil</span>{% endif %}</p>
+    <p>Téléphone : <strong>{{ analyse.telephone or '-' }}</strong></p>
+    <p>LinkedIn : <strong>{{ analyse.linkedin or '-' }}</strong></p>
+    <h2 style="margin-top:20px">Adéquation par métier</h2>
+    <table>{% for titre, score in scores %}<tr><td>{{ titre }}</td><td><strong>{{ score }}</strong> compétence(s)</td></tr>{% endfor %}</table>
+  </div>
+  <div class="carte">
+    <h2>Compétences reconnues ({{ analyse.competences | length }})</h2>
+    {% for c in analyse.competences %}<span class="tag">{{ c }}</span>{% else %}<p>Aucune : votre CV est peut-être une image (scan). Exportez-le en PDF depuis Word.</p>{% endfor %}
+  </div>
+</div>
+<a class="bouton secondaire" href="{{ url_for('profil') }}">Retour au profil</a>
+{% endblock %}

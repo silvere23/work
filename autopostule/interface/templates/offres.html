@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import criteres, statut as pastille, libelle with context %}
+{% block titre %}Offres d'emploi{% endblock %}
+{% block contenu %}
+<h1>Offres d'emploi</h1>
+<p class="sous-titre">Offres récentes de France Travail (et ses sites partenaires) et d'Adzuna (agrégateur de sites emploi),
+  plus celles que vous ajoutez depuis LinkedIn, Indeed ou un site carrière.</p>
+
+<div class="grille-2">
+  <div class="carte">
+    <h2>Rechercher des offres récentes</h2>
+    {% if not sources.france_travail and not sources.adzuna %}
+      <div class="message alerte">Aucune source configurée : ajoutez vos identifiants gratuits France Travail et/ou Adzuna
+        dans <a href="{{ url_for('profil') }}">Profil & réglages</a>.</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('lancer_recherche_offres') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      {{ criteres(r, contrats=contrats) }}
+      <div class="ligne">
+        <div><label>Publiées depuis (jours)</label><input type="number" min="1" max="31" name="jours" value="{{ jours }}"></div>
+        <div><label>Maximum par métier et par source</label><input type="number" min="1" name="limite" value="50"></div>
+      </div>
+      <div class="cases" style="margin-top:10px">
+        <label><input type="checkbox" name="sources" value="france_travail" {{ 'checked' if sources.france_travail }} {{ 'disabled' if not sources.france_travail }}> France Travail</label>
+        <label><input type="checkbox" name="sources" value="adzuna" {{ 'checked' if sources.adzuna }} {{ 'disabled' if not sources.adzuna }}> Adzuna</label>
+      </div>
+      <div class="actions"><button {{ 'disabled' if tache_courante or not (sources.france_travail or sources.adzuna) }}>Rechercher</button></div>
+    </form>
+  </div>
+
+  <div class="carte">
+    <h2>Ajouter une offre vue ailleurs</h2>
+    <form method="post" action="{{ url_for('ajouter_offre') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <label for="texte">Texte de l'offre (copier-coller depuis LinkedIn, Indeed…)</label>
+      <textarea id="texte" name="texte" rows="6" placeholder="Intitulé, description, compétences demandées…"></textarea>
+      <label for="url">Lien de l'offre</label>
+      <input type="url" id="url" name="url" placeholder="https://… (seul, l'outil lit la page si le site l'autorise)">
+      <div class="ligne">
+        <div><label>Entreprise</label><input type="text" name="entreprise"></div>
+        <div><label>Ville</label><input type="text" name="ville"></div>
+      </div>
+      <div class="ligne">
+        <div><label>E-mail de candidature</label><input type="email" name="email" placeholder="si indiqué dans l'offre"></div>
+        <div><label>Contrat</label><select name="contrat"><option value="">?</option>{% for cle, lib in CONTRATS.items() %}<option value="{{ cle }}">{{ lib }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="actions"><button class="secondaire">Ajouter l'offre</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="carte">
+  <div class="ligne" style="align-items:center">
+    <div class="filtres" style="margin:0">
+      <a href="{{ url_for('offres') }}">{{ pastille('toutes') if not statut else 'toutes' }}</a>
+      {% for s in statuts %}<a href="{{ url_for('offres', statut=s) }}">{% if statut == s %}{{ pastille(s) }}{% else %}{{ libelle(s) }}{% endif %}</a>{% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('lancer_preparation_offres') }}" style="flex:0 0 auto">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <label style="display:inline-flex;gap:6px;font-weight:400"><input type="checkbox" name="ia"> IA</label>
+      <button {{ 'disabled' if tache_courante }}>Préparer les nouvelles offres (CV + lettre)</button>
+    </form>
+  </div>
+  <div class="tableau" style="margin-top:12px"><table>
+    <tr><th>Publiée</th><th>Intitulé</th><th>Entreprise</th><th>Lieu</th><th>Contrat</th><th>Source</th><th>Statut</th></tr>
+    {% for o in lignes %}
+      <tr>
+        <td>{{ (o.date_publication or '')[:10] }}</td>
+        <td><a href="{{ url_for('offre', id_=o.id) }}">{{ o.titre }}</a></td>
+        <td>{{ o.entreprise or '?' }}</td><td>{{ o.ville or '' }}</td>
+        <td>{{ CONTRATS.get(o.type_contrat, o.type_contrat or '?') }}</td><td>{{ o.source }}</td>
+        <td>{{ pastille(o.statut) }}</td>
+      </tr>
+    {% else %}<tr><td colspan="7">Aucune offre pour l'instant.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

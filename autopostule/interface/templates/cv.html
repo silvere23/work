@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titre %}CV structuré{% endblock %}
+{% block contenu %}
+<h1>CV structuré</h1>
+<p class="sous-titre">Tout votre parcours, à partir duquel l'outil fabrique un CV adapté à chaque offre
+  (titre du poste visé, compétences demandées en premier, missions les plus pertinentes d'abord). Rien n'est jamais inventé.</p>
+
+{% if not existe %}
+  <div class="carte">
+    <p>Vous n'avez pas encore de CV structuré. Créez-le à partir de votre CV : vos compétences seront pré-remplies,
+      il vous restera à écrire vos expériences et vos missions.</p>
+    <form method="post"><input type="hidden" name="_jeton" value="{{ jeton }}">
+      <button name="action" value="creer">Créer mon CV structuré</button></form>
+  </div>
+{% else %}
+  {% if exemple %}<div class="message alerte">Il contient encore le parcours d'exemple (« Entreprise A », « Lycée Exemple »).
+    Tant que c'est le cas, il est ignoré et votre CV d'origine est envoyé tel quel.</div>{% endif %}
+  <div class="grille-2 grille-large">
+    <div class="carte">
+      <form method="post"><input type="hidden" name="_jeton" value="{{ jeton }}">
+        <textarea class="code" name="texte" spellcheck="false">{{ texte }}</textarea>
+        <div class="actions">
+          <button name="action" value="enregistrer">Enregistrer</button>
+          <button class="secondaire" name="action" value="creer" onclick="return confirm('Remplacer par un nouveau modèle créé depuis votre CV ? Vos modifications seront perdues.')">Recréer depuis mon CV</button>
+        </div>
+      </form>
+    </div>
+    <div class="carte">
+      <h2>Comment remplir</h2>
+      <p class="aide">Gardez les espaces en début de ligne : ils indiquent la structure.</p>
+<pre class="journal" style="min-height:0;font-size:12px">experiences:
+  - poste: "Administrateur systèmes"
+    entreprise: "Nom réel"
+    lieu: "Paris"
+    debut: "2023"
+    fin: "aujourd'hui"
+    missions:
+      - "Une mission par ligne"
+      - "Avec les outils utilisés"</pre>
+      <h2 style="margin-top:16px">Aperçu</h2>
+      <form method="post" action="{{ url_for('apercu_cv') }}" target="_blank">
+        <input type="hidden" name="_jeton" value="{{ jeton }}">
+        <label for="titre">Poste visé</label><input type="text" id="titre" name="titre" placeholder="Ingénieur DevOps">
+        <label for="mots">Compétences demandées</label><input type="text" id="mots" name="mots" placeholder="Docker, Kubernetes, Terraform">
+        <div class="actions"><button class="secondaire">Voir le CV adapté (PDF)</button></div>
+      </form>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

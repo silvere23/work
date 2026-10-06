@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titre %}autopostule{% endblock %} · autopostule</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="barre">
+  <a class="logo" href="{{ url_for('accueil') }}">autopostule</a>
+  {% set page = request.endpoint or '' %}
+  <nav>
+    <a href="{{ url_for('accueil') }}" class="{{ 'actif' if page == 'accueil' }}">Tableau de bord</a>
+    <a href="{{ url_for('profil') }}" class="{{ 'actif' if page in ('profil', 'cv_analyse') }}">Profil & réglages</a>
+    <a href="{{ url_for('cv') }}" class="{{ 'actif' if page == 'cv' }}">CV structuré</a>
+    <a href="{{ url_for('offres') }}" class="{{ 'actif' if page in ('offres', 'offre') }}">Offres d'emploi</a>
+    <a href="{{ url_for('entreprises') }}" class="{{ 'actif' if page == 'entreprises' }}">Entreprises & e-mails RH</a>
+    <a href="{{ url_for('candidatures') }}" class="{{ 'actif' if page in ('candidatures', 'candidature') }}">Candidatures</a>
+  </nav>
+</header>
+<main>
+  {% if tache_courante and request.endpoint != 'tache' %}
+    <div class="message alerte">Tâche en cours : <strong>{{ tache_courante.titre }}</strong> -
+      <a href="{{ url_for('tache', id_=tache_courante.id) }}">suivre</a></div>
+  {% endif %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for categorie, message in messages %}<div class="message {{ categorie }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+  {% block contenu %}{% endblock %}
+</main>
+<footer>autopostule {{ version }} · dossier : {{ dossier }} · fonctionne uniquement sur cet ordinateur</footer>
+</body>
+</html>

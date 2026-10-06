@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import statut as pastille with context %}
+{% block titre %}Candidature #{{ c.id }}{% endblock %}
+{% block contenu %}
+<p><a href="{{ url_for('candidatures') }}">← Candidatures</a></p>
+<h1>{{ c.objet }}</h1>
+<p class="sous-titre">À : <strong>{{ c.email }}</strong> · {{ pastille(c.statut) }}
+  {% if o %} · offre <a href="{{ url_for('offre', id_=o.id) }}">{{ o.titre }}</a>{% else %} · candidature spontanée{% endif %}
+  {% if entreprise and entreprise.site %} · <a href="{{ entreprise.site }}" target="_blank" rel="noopener">site de l'entreprise</a>{% endif %}</p>
+
+<div class="actions" style="margin-bottom:16px">
+  <form method="post" action="{{ url_for('action_candidatures') }}">
+    <input type="hidden" name="_jeton" value="{{ jeton }}"><input type="hidden" name="ids" value="{{ c.id }}">
+    <input type="hidden" name="retour" value="{{ url_for('candidature', id_=c.id) }}">
+    {% if c.statut in ('brouillon', 'echec') %}<button name="action" value="approuver">Approuver</button>{% endif %}
+    {% if c.statut in ('brouillon', 'approuvee', 'echec') %}<button class="secondaire" name="action" value="ignorer">Écarter</button>{% endif %}
+    {% if c.statut in ('approuvee', 'ignoree') %}<button class="secondaire" name="action" value="brouillon">Remettre en brouillon</button>{% endif %}
+  </form>
+  {% if c.cv_pdf %}<a class="bouton secondaire" href="{{ url_for('fichier', chemin=c.cv_pdf) }}" target="_blank">CV adapté (PDF)</a>{% endif %}
+  {% if c.lettre_pdf %}<a class="bouton secondaire" href="{{ url_for('fichier', chemin=c.lettre_pdf) }}" target="_blank">Lettre (PDF)</a>{% endif %}
+</div>
+{% if not c.cv_pdf %}<div class="message alerte">Pas de CV adapté : votre CV d'origine sera joint (complétez le CV structuré pour l'adapter).</div>{% endif %}
+
+<div class="grille-2">
+  <div class="carte"><h2>Message (corps de l'e-mail)</h2><pre class="lettre">{{ c.corps }}</pre></div>
+  <div class="carte"><h2>Lettre de motivation</h2><pre class="lettre">{{ c.lettre }}</pre></div>
+</div>
+{% endblock %}

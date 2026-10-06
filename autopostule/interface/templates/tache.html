@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titre %}{{ t.titre }}{% endblock %}
+{% block contenu %}
+<h1>{{ t.titre }}</h1>
+<p class="sous-titre" id="etat">{% if t.etat == 'en_cours' %}En cours…{% elif t.etat == 'terminee' %}Terminé{% else %}Erreur{% endif %}</p>
+<pre class="journal" id="journal">{{ t.en_dict().journal | join('\n') }}</pre>
+<div class="actions">
+  <a class="bouton secondaire" href="{{ url_for('accueil') }}">Tableau de bord</a>
+  <a class="bouton secondaire" href="{{ url_for('offres') }}">Offres</a>
+  <a class="bouton secondaire" href="{{ url_for('entreprises') }}">Entreprises</a>
+  <a class="bouton" href="{{ url_for('candidatures') }}">Candidatures</a>
+</div>
+<script>
+(function () {
+  const journal = document.getElementById("journal"), etat = document.getElementById("etat");
+  const libelles = {en_cours: "En cours…", terminee: "Terminé", erreur: "Erreur"};
+  async function suivre() {
+    try {
+      const r = await fetch("{{ url_for('tache_json', id_=t.id) }}");
+      const d = await r.json();
+      const enBas = journal.scrollTop + journal.clientHeight >= journal.scrollHeight - 20;
+      journal.textContent = d.journal.join("\n");
+      if (enBas) journal.scrollTop = journal.scrollHeight;
+      etat.textContent = libelles[d.etat] + " · " + d.duree + " s";
+      if (d.etat === "en_cours") setTimeout(suivre, 1000);
+    } catch (e) { setTimeout(suivre, 2000); }
+  }
+  journal.scrollTop = journal.scrollHeight;
+  suivre();
+})();
+</script>
+{% endblock %}

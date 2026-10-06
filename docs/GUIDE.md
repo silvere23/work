@@ -27,6 +27,9 @@ pip install -e ".[dns,dev]"
 pytest
 ```
 
+Après une mise à jour (`git pull`), relancez `pip install -e ".[dns,dev]"` pour installer les nouvelles
+dépendances (Flask pour l'interface).
+
 | Problème Windows                                         | Solution                                                    |
 |----------------------------------------------------------|-------------------------------------------------------------|
 | `Python est introuvable ; exécutez sans arguments…`      | Python absent du PATH : utilisez le chemin complet ci-dessus, ou désactivez les alias `python.exe` / `python3.exe` (Paramètres → Applications → Paramètres avancés → Alias d'exécution d'application) |
@@ -36,6 +39,35 @@ pytest
 
 À chaque nouvelle fenêtre PowerShell : `cd` dans le dossier du projet puis `.venv\Scripts\Activate.ps1`.
 Le dossier « Téléchargements » de l'Explorateur s'appelle en réalité `C:\Users\vous\Downloads`.
+
+## Interface graphique (recommandé)
+
+Après l'installation, le plus simple est d'utiliser l'interface :
+
+- **Windows** : double-cliquez sur `lancer_interface.bat` (à la racine du projet), ou dans PowerShell :
+  `.venv\Scripts\Activate.ps1` puis `autopostule interface` ;
+- **Linux / macOS** : `./lancer_interface.sh` ou `autopostule interface`.
+
+Le navigateur s'ouvre sur `http://127.0.0.1:8765`. Gardez la fenêtre noire ouverte pendant l'utilisation ;
+fermez-la pour arrêter. L'interface n'est accessible que depuis votre ordinateur, et chaque formulaire est
+protégé contre les autres sites ouverts dans le navigateur.
+
+Au premier lancement, choisissez le **dossier de travail**. Si vous avez déjà utilisé la ligne de commande,
+indiquez le même dossier (par exemple `C:\Users\vous\essai`) : vos réglages et candidatures sont repris.
+
+| Page                      | Ce qu'on y fait                                                                     |
+|---------------------------|-------------------------------------------------------------------------------------|
+| Tableau de bord           | chiffres clés, points à corriger (profil, CV, identifiants), marche à suivre        |
+| Profil & réglages         | coordonnées, type de poste (CDI, CDD…), métiers, zones, import du CV, SMTP, identifiants France Travail / Adzuna |
+| CV structuré              | création depuis votre CV, édition, aperçu PDF du CV adapté à un poste               |
+| Offres d'emploi           | recherche des offres récentes, ajout d'une offre copiée (LinkedIn, Indeed…), préparation CV + lettre, adéquation compétences |
+| Entreprises & e-mails RH  | recherche d'entreprises, recherche des adresses RH, préparation des candidatures spontanées |
+| Candidatures              | relecture (message, lettre, CV en PDF), approbation, essai, envoi, liste d'exclusion |
+
+Les opérations longues (recherche, analyse des sites, envoi) tournent en arrière-plan : une page affiche leur
+journal en direct, et vous pouvez continuer à naviguer. Une seule opération à la fois.
+
+Les sections suivantes décrivent la ligne de commande, qui offre exactement les mêmes fonctions.
 
 ## 2. Initialisation
 

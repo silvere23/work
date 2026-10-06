@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import criteres, statut as pastille, libelle with context %}
+{% block titre %}Entreprises & e-mails RH{% endblock %}
+{% block contenu %}
+<h1>Entreprises & e-mails RH</h1>
+<p class="sous-titre">Candidatures spontanées : l'outil trouve des entreprises de votre secteur (base officielle SIRENE),
+  leur site web, puis les adresses de recrutement publiées (recrutement@, rh@, jobs@, contact@…).</p>
+
+<div class="grille-2">
+  <div class="carte">
+    <h2>1. Trouver des entreprises</h2>
+    <form method="post" action="{{ url_for('lancer_recherche_entreprises') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      {{ criteres(r, avec_effectif=True) }}
+      <div class="ligne"><div><label>Nombre maximum par métier</label><input type="number" min="1" max="500" name="limite" value="30"></div></div>
+      <div class="actions"><button {{ 'disabled' if tache_courante }}>Rechercher</button></div>
+    </form>
+  </div>
+  <div class="carte">
+    <h2>2. Chercher les e-mails RH</h2>
+    <p>Visite le site de chaque entreprise pas encore analysée (quelques secondes par site, en respectant les règles des sites).</p>
+    <form method="post" action="{{ url_for('lancer_scan') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <div class="ligne"><div><label>Nombre d'entreprises à analyser (vide = toutes)</label><input type="number" min="1" name="limite"></div></div>
+      <div class="actions"><button {{ 'disabled' if tache_courante }}>Chercher les e-mails</button></div>
+    </form>
+    <h2 style="margin-top:24px">3. Préparer les candidatures</h2>
+    <p>Une lettre et un CV adaptés pour chaque entreprise ayant une adresse. Rien n'est envoyé.</p>
+    <form method="post" action="{{ url_for('lancer_generation') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <div class="cases"><label><input type="checkbox" name="ia"> Lettres rédigées par l'IA</label></div>
+      <div class="actions"><button {{ 'disabled' if tache_courante }}>Préparer les candidatures</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="carte">
+  <div class="filtres">
+    <a href="{{ url_for('entreprises') }}">{{ pastille('toutes') if not statut else 'toutes' }}</a>
+    {% for s in ['a_scanner', 'scanne', 'sans_email', 'sans_site'] %}
+      <a href="{{ url_for('entreprises', statut=s) }}">{% if statut == s %}{{ pastille(s) }}{% else %}{{ libelle(s) }}{% endif %}</a>
+    {% endfor %}
+  </div>
+  <div class="tableau"><table>
+    <tr><th>Entreprise</th><th>Ville</th><th>Statut</th><th>E-mail trouvé</th><th>Site</th></tr>
+    {% for e in lignes %}
+      <tr>
+        <td>{{ e.nom }}</td><td>{{ e.ville or '' }}</td><td>{{ pastille(e.statut_scan) }}</td>
+        <td>{% if e.siren in emails %}{{ emails[e.siren].email }} <span class="etiquette">{{ emails[e.siren].type }}</span>{% endif %}</td>
+        <td>{% if e.site %}<a href="{{ e.site }}" target="_blank" rel="noopener">{{ e.site | replace('https://', '') | replace('http://', '') | truncate(32) }}</a>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="5">Aucune entreprise : lancez une recherche.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

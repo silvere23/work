@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titre %}Dossier de travail{% endblock %}
+{% block contenu %}
+<h1>Dossier de travail</h1>
+<p class="sous-titre">Le dossier où sont rangés votre configuration, votre CV et vos candidatures.</p>
+<div class="carte">
+  <form method="post" action="{{ url_for('choisir_dossier') }}">
+    <input type="hidden" name="_jeton" value="{{ jeton }}">
+    <label for="chemin">Chemin du dossier</label>
+    <input type="text" id="chemin" name="chemin" value="{{ propose }}" required>
+    <p class="aide">Si vous avez déjà utilisé la ligne de commande, indiquez le même dossier
+      (par exemple C:\Users\vous\essai) : rien n'est écrasé. Sinon, un nouveau dossier est créé.</p>
+    <div class="actions"><button type="submit">Utiliser ce dossier</button></div>
+  </form>
+</div>
+{% endblock %}

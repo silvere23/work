@@ -1,0 +1,115 @@
+:root {
+  --fond: #f5f6f8;
+  --carte: #ffffff;
+  --texte: #1f2430;
+  --doux: #5f6675;
+  --bord: #dfe2e8;
+  --accent: #1f4e79;
+  --accent-clair: #e6eef6;
+  --ok: #1d7a46;
+  --ok-fond: #e5f4ea;
+  --alerte: #a15c00;
+  --alerte-fond: #fff3e0;
+  --erreur: #b3261e;
+  --erreur-fond: #fdecea;
+  --rayon: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #15181e; --carte: #1e222a; --texte: #e6e8ec; --doux: #a2a8b4; --bord: #323845;
+    --accent: #7fb0e0; --accent-clair: #24303f; --ok: #6fd39a; --ok-fond: #1b3326;
+    --alerte: #f0b35c; --alerte-fond: #3a2c17; --erreur: #f2978f; --erreur-fond: #3b1f1e;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--fond); color: var(--texte);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--accent); }
+header.barre {
+  background: var(--carte); border-bottom: 1px solid var(--bord);
+  display: flex; align-items: center; gap: 24px; padding: 0 24px; flex-wrap: wrap;
+}
+header.barre .logo { font-weight: 700; font-size: 18px; padding: 14px 0; color: var(--accent); text-decoration: none; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav a {
+  text-decoration: none; color: var(--doux); padding: 8px 12px; border-radius: 8px; font-weight: 500;
+}
+nav a.actif, nav a:hover { background: var(--accent-clair); color: var(--accent); }
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.sous-titre { color: var(--doux); margin: 0 0 20px; }
+.carte {
+  background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon);
+  padding: 20px; margin-bottom: 20px;
+}
+.grille { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+.grille-2 { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
+.chiffre { font-size: 30px; font-weight: 700; }
+.etiquette { color: var(--doux); font-size: 13px; }
+.message { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; }
+.message.ok { background: var(--ok-fond); color: var(--ok); }
+.message.erreur { background: var(--erreur-fond); color: var(--erreur); }
+.message.alerte { background: var(--alerte-fond); color: var(--alerte); }
+label { display: block; font-weight: 600; font-size: 13px; margin: 10px 0 4px; }
+input[type=text], input[type=email], input[type=number], input[type=password], input[type=url], select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--bord); border-radius: 8px;
+  background: var(--fond); color: var(--texte); font: inherit;
+}
+textarea { min-height: 120px; }
+textarea.code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; min-height: 520px; }
+.aide { color: var(--doux); font-size: 12px; margin-top: 3px; }
+.cases { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cases label { font-weight: 400; font-size: 14px; margin: 0; display: flex; gap: 6px; align-items: center; }
+.ligne { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.ligne > * { flex: 1 1 160px; }
+button, .bouton {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff; font: inherit; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+}
+@media (prefers-color-scheme: dark) { button, .bouton { color: #10151c; } }
+button.secondaire, .bouton.secondaire { background: transparent; color: var(--accent); }
+button.danger { background: var(--erreur); border-color: var(--erreur); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--bord); vertical-align: top; }
+th { color: var(--doux); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+.tableau { overflow-x: auto; }
+.pastille {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--accent-clair); color: var(--accent); white-space: nowrap;
+}
+.pastille.ok, .pastille.envoyee, .pastille.postulee, .pastille.scanne, .pastille.approuvee { background: var(--ok-fond); color: var(--ok); }
+.pastille.erreur, .pastille.echec, .pastille.sans_site, .pastille.sans_email { background: var(--erreur-fond); color: var(--erreur); }
+.pastille.alerte, .pastille.a_postuler_sur_site, .pastille.brouillon, .pastille.a_scanner { background: var(--alerte-fond); color: var(--alerte); }
+.pastille.ignoree { background: var(--bord); color: var(--doux); }
+.filtres { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.filtres a { text-decoration: none; }
+pre.journal {
+  background: #10141b; color: #d7dde8; padding: 16px; border-radius: 8px; min-height: 260px; max-height: 65vh;
+  overflow: auto; white-space: pre-wrap; font: 13px/1.5 ui-monospace, Consolas, monospace;
+}
+pre.lettre { white-space: pre-wrap; font: 14px/1.6 Georgia, "Times New Roman", serif; margin: 0; }
+details summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+.etapes { counter-reset: etape; list-style: none; padding: 0; margin: 0; }
+.etapes li { counter-increment: etape; display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--bord); }
+.etapes li:last-child { border-bottom: 0; }
+.etapes li::before {
+  content: counter(etape); flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-clair); color: var(--accent); font-weight: 700;
+}
+.etapes li > div { flex: 1; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 6px; margin: 2px; font-size: 13px; background: var(--ok-fond); color: var(--ok); }
+.tag.absent { background: var(--erreur-fond); color: var(--erreur); }
+footer { color: var(--doux); font-size: 12px; text-align: center; padding: 20px; }
+.grille-large { grid-template-columns: 2fr 1fr; }
+@media (max-width: 900px) { .grille-large { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  header.barre { padding: 0 16px; gap: 8px; }
+  nav a { padding: 6px 8px; }
+  main { padding: 16px 16px 48px; }
+}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titre %}Tableau de bord{% endblock %}
+{% block contenu %}
+<h1>Bonjour{% if profil.prenom %} {{ profil.prenom }}{% endif %}</h1>
+<p class="sous-titre">
+  {% if metiers %}Métiers visés : {% for m in metiers %}{{ METIERS[m].titre if m in METIERS else m }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}
+  {% if contrats %} · {{ libelle_contrats(contrats) }}{% endif %}
+</p>
+
+{% for texte, page in alertes %}
+  <div class="message alerte">{{ texte }} - <a href="{{ url_for(page) }}">corriger</a></div>
+{% endfor %}
+
+<div class="grille">
+  <div class="carte"><div class="chiffre">{{ stats.get('offres_nouvelle', 0) + stats.get('offres_preparee', 0) + stats.get('offres_postulee', 0) + stats.get('offres_a_postuler_sur_site', 0) }}</div><div class="etiquette">offres récupérées</div></div>
+  <div class="carte"><div class="chiffre">{{ stats.get('entreprises', 0) }}</div><div class="etiquette">entreprises · {{ stats.get('emails', 0) }} e-mail(s) RH trouvé(s)</div></div>
+  <div class="carte"><div class="chiffre">{{ stats.get('candidatures_brouillon', 0) }}</div><div class="etiquette">brouillons à relire</div></div>
+  <div class="carte"><div class="chiffre">{{ stats.get('candidatures_envoyee', 0) }}</div><div class="etiquette">candidatures envoyées · {{ envois }}/{{ max_jour }} aujourd'hui</div></div>
+</div>
+
+<div class="carte">
+  <h2>Marche à suivre</h2>
+  <ol class="etapes">
+    <li><div><strong>Profil et CV</strong> - vos coordonnées, le type de poste (CDI, CDD…), votre CV et vos identifiants.
+      <div class="actions"><a class="bouton secondaire" href="{{ url_for('profil') }}">Profil & réglages</a>
+      <a class="bouton secondaire" href="{{ url_for('cv') }}">CV structuré</a></div></div></li>
+    <li><div><strong>Offres d'emploi récentes</strong> - récupérez les offres (France Travail, Adzuna) ou ajoutez-en une vue sur LinkedIn / Indeed, puis préparez CV et lettre adaptés.
+      <div class="actions"><a class="bouton secondaire" href="{{ url_for('offres') }}">Offres d'emploi</a></div></div></li>
+    <li><div><strong>Candidatures spontanées</strong> - trouvez des entreprises de votre secteur et de votre région, puis leurs adresses e-mail RH.
+      <div class="actions"><a class="bouton secondaire" href="{{ url_for('entreprises') }}">Entreprises & e-mails RH</a></div></div></li>
+    <li><div><strong>Relire, approuver, envoyer</strong> - vérifiez chaque candidature, faites un essai, puis envoyez.
+      <div class="actions"><a class="bouton" href="{{ url_for('candidatures') }}">Candidatures</a></div></div></li>
+  </ol>
+</div>
+{% endblock %}

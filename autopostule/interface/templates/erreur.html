@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titre %}Erreur{% endblock %}
+{% block contenu %}
+<h1>Un réglage est à corriger</h1>
+<div class="message erreur" style="white-space: pre-wrap">{{ message }}</div>
+<div class="actions">
+  <a class="bouton" href="{{ url_for('dossier') }}">Changer de dossier de travail</a>
+</div>
+{% endblock %}

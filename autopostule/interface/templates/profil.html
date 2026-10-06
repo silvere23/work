@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block titre %}Profil & réglages{% endblock %}
+{% block contenu %}
+{% set p = cfg.profil %}{% set r = cfg.recherche %}{% set e = cfg.envoi %}
+<h1>Profil & réglages</h1>
+<p class="sous-titre">Ces informations figurent sur vos lettres, vos CV et dans la signature de vos e-mails.</p>
+
+<form method="post" action="{{ url_for('enregistrer_profil') }}" enctype="multipart/form-data">
+<input type="hidden" name="_jeton" value="{{ jeton }}">
+
+<div class="grille-2">
+  <div class="carte">
+    <h2>Vous</h2>
+    <div class="ligne">
+      <div><label for="prenom">Prénom</label><input type="text" id="prenom" name="prenom" value="{{ p.prenom }}" required></div>
+      <div><label for="nom">Nom</label><input type="text" id="nom" name="nom" value="{{ p.nom }}" required></div>
+    </div>
+    <label for="genre">Accords dans les lettres</label>
+    <select id="genre" name="genre">
+      <option value="" {{ 'selected' if not p.genre }}>Écriture inclusive (motivé(e))</option>
+      <option value="M" {{ 'selected' if p.genre == 'M' }}>Masculin (motivé)</option>
+      <option value="F" {{ 'selected' if p.genre == 'F' }}>Féminin (motivée)</option>
+    </select>
+    <div class="ligne">
+      <div><label for="email">E-mail</label><input type="email" id="email" name="email" value="{{ p.email }}" required></div>
+      <div><label for="telephone">Téléphone</label><input type="text" id="telephone" name="telephone" value="{{ p.telephone }}" required></div>
+    </div>
+    <label for="adresse">Adresse (facultatif)</label><input type="text" id="adresse" name="adresse" value="{{ p.adresse }}">
+    <div class="ligne">
+      <div><label for="code_postal">Code postal</label><input type="text" id="code_postal" name="code_postal" value="{{ p.code_postal }}"></div>
+      <div><label for="ville">Ville</label><input type="text" id="ville" name="ville" value="{{ p.ville }}"></div>
+    </div>
+    <label for="linkedin">LinkedIn</label><input type="url" id="linkedin" name="linkedin" value="{{ p.linkedin }}" placeholder="https://www.linkedin.com/in/...">
+    <div class="ligne">
+      <div><label for="github">GitHub</label><input type="text" id="github" name="github" value="{{ p.github }}"></div>
+      <div><label for="portfolio">Portfolio</label><input type="text" id="portfolio" name="portfolio" value="{{ p.portfolio }}"></div>
+    </div>
+  </div>
+
+  <div class="carte">
+    <h2>Votre parcours</h2>
+    <label for="titre">Titre actuel</label><input type="text" id="titre" name="titre" value="{{ p.titre }}" placeholder="Administrateur systèmes et réseaux">
+    <div class="ligne">
+      <div><label for="annees_experience">Années d'expérience</label><input type="number" min="0" id="annees_experience" name="annees_experience" value="{{ p.annees_experience or 0 }}"></div>
+      <div><label for="disponibilite">Disponibilité</label><input type="text" id="disponibilite" name="disponibilite" value="{{ p.disponibilite }}" placeholder="immédiatement"></div>
+    </div>
+    <label for="mobilite">Mobilité</label><input type="text" id="mobilite" name="mobilite" value="{{ p.mobilite }}">
+    <div class="cases" style="margin-top:10px"><label><input type="checkbox" name="permis" {{ 'checked' if p.permis }}> Permis B</label></div>
+
+    <label for="cv_fichier">Votre CV (PDF ou Word)</label>
+    <input type="file" id="cv_fichier" name="cv_fichier" accept=".pdf,.docx,.txt,.md">
+    <p class="aide">{% if cv %}CV actuel : {{ cv.name }} - <a href="{{ url_for('cv_analyse') }}">voir ce que l'outil en comprend</a>{% else %}Aucun CV pour l'instant.{% endif %}</p>
+    <label for="paragraphe_perso">Phrase personnelle ajoutée à toutes les lettres (facultatif)</label>
+    <textarea id="paragraphe_perso" name="paragraphe_perso" rows="3">{{ cfg.lettre.paragraphe_perso }}</textarea>
+  </div>
+</div>
+
+<div class="carte">
+  <h2>Ce que vous recherchez</h2>
+  <label>Métiers</label>
+  <div class="cases">{% for cle, m in METIERS.items() %}
+    <label><input type="checkbox" name="metiers" value="{{ cle }}" {{ 'checked' if cle in (r.metiers or []) }}> {{ m.titre }}</label>{% endfor %}</div>
+  <label>Type de poste</label>
+  <div class="cases">{% for cle, libelle in CONTRATS.items() %}
+    <label><input type="checkbox" name="types_contrat" value="{{ cle }}" {{ 'checked' if cle in contrats }}> {{ libelle }}</label>{% endfor %}</div>
+  <p class="aide">Filtre les offres d'emploi et apparaît dans vos candidatures spontanées. Aucune case = tous types.</p>
+  <label>Régions</label>
+  <div class="cases">{% for cle, reg in REGIONS.items() %}
+    <label><input type="checkbox" name="regions" value="{{ cle }}" {{ 'checked' if cle in (r.regions or []) }}> {{ reg.nom }}</label>{% endfor %}</div>
+  <div class="ligne">
+    <div><label for="departements">Départements (prioritaires sur les régions)</label><input type="text" id="departements" name="departements" value="{{ (r.departements or []) | join(', ') }}" placeholder="92, 93, 95"></div>
+    <div><label for="villes">Villes</label><input type="text" id="villes" name="villes" value="{{ (r.villes or []) | join(', ') }}" placeholder="Paris, Nanterre"></div>
+  </div>
+  <div class="ligne">
+    <div><label for="effectif_min">Effectif minimum</label><input type="number" min="0" id="effectif_min" name="effectif_min" value="{{ r.effectif_min or 0 }}"></div>
+    <div><label for="effectif_max">Effectif maximum (0 = sans limite)</label><input type="number" min="0" id="effectif_max" name="effectif_max" value="{{ r.effectif_max or 0 }}"></div>
+    <div><label for="publiees_depuis_jours">Offres publiées depuis (jours)</label><input type="number" min="1" max="31" id="publiees_depuis_jours" name="publiees_depuis_jours" value="{{ cfg.offres.publiees_depuis_jours or 7 }}"></div>
+  </div>
+  <p class="aide">Les PME (jusqu'à 249 salariés) publient bien plus souvent une adresse RH que les grands groupes.</p>
+  <div class="cases" style="margin-top:10px">
+    <label><input type="checkbox" name="chercher_email_rh" {{ 'checked' if cfg.offres.chercher_email_rh }}> Offre sans e-mail : chercher l'adresse RH sur le site de l'entreprise</label>
+    <label><input type="checkbox" name="lettre_ia" {{ 'checked' if cfg.lettre.moteur == 'ia' }}> Lettres rédigées par l'IA Claude (clé API requise)</label>
+  </div>
+</div>
+
+<div class="grille-2">
+  <div class="carte">
+    <h2>Envoi des e-mails</h2>
+    <div class="ligne">
+      <div><label for="smtp_hote">Serveur SMTP</label><input type="text" id="smtp_hote" name="smtp_hote" value="{{ e.smtp_hote }}"></div>
+      <div><label for="smtp_port">Port</label><input type="number" id="smtp_port" name="smtp_port" value="{{ e.smtp_port }}"></div>
+      <div><label for="securite">Sécurité</label><select id="securite" name="securite">
+        <option value="starttls" {{ 'selected' if e.securite != 'ssl' }}>STARTTLS (587)</option>
+        <option value="ssl" {{ 'selected' if e.securite == 'ssl' }}>SSL (465)</option></select></div>
+    </div>
+    <label for="smtp_utilisateur">Identifiant SMTP (votre adresse e-mail)</label>
+    <input type="text" id="smtp_utilisateur" name="smtp_utilisateur" value="{{ e.smtp_utilisateur }}">
+    <div class="ligne">
+      <div><label for="max_par_jour">Maximum d'envois par jour</label><input type="number" min="1" id="max_par_jour" name="max_par_jour" value="{{ e.max_par_jour }}"></div>
+    </div>
+    <div class="cases" style="margin-top:10px"><label><input type="checkbox" name="validation_manuelle" {{ 'checked' if e.validation_manuelle }}> N'envoyer que les candidatures que j'ai approuvées</label></div>
+    <p class="aide">Gmail : smtp.gmail.com, port 587, et un « mot de passe d'application » (myaccount.google.com/apppasswords).</p>
+  </div>
+
+  <div class="carte">
+    <h2>Mots de passe et identifiants</h2>
+    <p class="aide">Enregistrés dans le fichier .env de votre dossier, jamais affichés. Laissez vide pour ne pas changer.</p>
+    {% for cle, (libelle, present) in secrets_.items() %}
+      <label for="{{ cle }}">{{ libelle }} {% if present %}<span class="pastille ok">renseigné</span>{% else %}<span class="pastille alerte">absent</span>{% endif %}</label>
+      <input type="password" id="{{ cle }}" name="{{ cle }}" autocomplete="off">
+    {% endfor %}
+    <p class="aide">Identifiants gratuits : francetravail.io (application abonnée à « Offres d'emploi v2 ») et developer.adzuna.com.</p>
+  </div>
+</div>
+
+<div class="actions"><button type="submit">Enregistrer</button></div>
+</form>
+{% endblock %}

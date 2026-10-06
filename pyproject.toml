@@ -18,6 +18,7 @@ dependencies = [
     "python-docx>=1.1",
     "python-dotenv>=1.0",
     "fpdf2>=2.7",
+    "Flask>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -29,10 +30,11 @@ dev = ["pytest>=8"]
 autopostule = "autopostule.cli:main"
 
 [tool.setuptools]
-packages = ["autopostule"]
+packages = ["autopostule", "autopostule.interface"]
 
 [tool.setuptools.package-data]
 autopostule = ["templates/*.j2", "templates/*.yaml"]
+"autopostule.interface" = ["templates/*.html", "static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

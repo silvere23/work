@@ -1,0 +1,32 @@
+{% macro criteres(r, avec_effectif=False, contrats=None) %}
+  <label>Métiers</label>
+  <div class="cases">{% for cle, m in METIERS.items() %}
+    <label><input type="checkbox" name="metiers" value="{{ cle }}" {{ 'checked' if cle in (r.metiers or []) }}> {{ m.titre }}</label>{% endfor %}</div>
+  {% if contrats is not none %}
+  <label>Type de poste</label>
+  <div class="cases">{% for cle, libelle in CONTRATS.items() %}
+    <label><input type="checkbox" name="types_contrat" value="{{ cle }}" {{ 'checked' if cle in contrats }}> {{ libelle }}</label>{% endfor %}</div>
+  {% endif %}
+  <details><summary>Zone géographique{% if r.regions %} : {% for x in r.regions %}{{ REGIONS[x].nom if x in REGIONS else x }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</summary>
+    <div class="cases">{% for cle, reg in REGIONS.items() %}
+      <label><input type="checkbox" name="regions" value="{{ cle }}" {{ 'checked' if cle in (r.regions or []) }}> {{ reg.nom }}</label>{% endfor %}</div>
+    <div class="ligne">
+      <div><label>Départements</label><input type="text" name="departements" value="{{ (r.departements or []) | join(', ') }}" placeholder="92, 93"></div>
+      <div><label>Villes</label><input type="text" name="villes" value="{{ (r.villes or []) | join(', ') }}" placeholder="Paris"></div>
+    </div>
+  </details>
+  {% if avec_effectif %}
+  <div class="ligne">
+    <div><label>Effectif minimum</label><input type="number" min="0" name="effectif_min" value="{{ r.effectif_min or 0 }}"></div>
+    <div><label>Effectif maximum</label><input type="number" min="0" name="effectif_max" value="{{ r.effectif_max or 0 }}"></div>
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% set LIBELLES = {"brouillon": "brouillon", "approuvee": "approuvée", "envoyee": "envoyée", "echec": "échec",
+  "ignoree": "écartée", "nouvelle": "nouvelle", "preparee": "préparée", "postulee": "postulée",
+  "a_postuler_sur_site": "à déposer sur le site", "postulee_sur_site": "déposée sur le site",
+  "a_scanner": "à analyser", "scanne": "e-mail trouvé", "sans_email": "sans e-mail", "sans_site": "site introuvable",
+  "toutes": "toutes"} %}
+{% macro libelle(valeur) %}{{ LIBELLES.get(valeur, (valeur or '') | replace('_', ' ')) }}{% endmacro %}
+{% macro statut(valeur) %}<span class="pastille {{ valeur }}">{{ libelle(valeur) }}</span>{% endmacro %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import statut as pastille, libelle with context %}
+{% block titre %}Candidatures{% endblock %}
+{% block contenu %}
+<h1>Candidatures</h1>
+<p class="sous-titre">Relisez, approuvez, faites un essai, puis envoyez. Seules les candidatures approuvées partent.</p>
+
+<div class="grille-2">
+  <div class="carte">
+    <h2>Envoyer</h2>
+    <form method="post" action="{{ url_for('lancer_envoi') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <div class="ligne"><div><label>Nombre maximum pour cet envoi (vide = plafond du jour)</label><input type="number" min="1" name="maximum"></div></div>
+      <div class="actions">
+        <button class="secondaire" name="mode" value="test" {{ 'disabled' if tache_courante }}>Essai (rien n'est envoyé)</button>
+        <button name="mode" value="reel" {{ 'disabled' if tache_courante }}
+          onclick="return confirm('Envoyer les candidatures approuvées depuis votre boîte e-mail ?')">Envoyer les candidatures approuvées</button>
+      </div>
+      <p class="aide">Une pause de 1 à 3 minutes sépare deux envois, pour ne pas être pris pour du spam. Vous pouvez fermer cette page, l'envoi continue.</p>
+    </form>
+  </div>
+  <div class="carte">
+    <h2>Ne plus contacter</h2>
+    <form method="post" action="{{ url_for('exclure') }}">
+      <input type="hidden" name="_jeton" value="{{ jeton }}">
+      <label>Adresse e-mail, domaine (societe.fr) ou SIREN</label><input type="text" name="valeur" required>
+      <div class="actions"><button class="secondaire">Exclure définitivement</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="carte">
+  <div class="filtres">
+    <a href="{{ url_for('candidatures') }}">{{ pastille('toutes') if not statut else 'toutes' }}</a>
+    {% for s in statuts %}<a href="{{ url_for('candidatures', statut=s) }}">{% if statut == s %}{{ pastille(s) }}{% else %}{{ libelle(s) }}{% endif %}</a>{% endfor %}
+  </div>
+  <form method="post" action="{{ url_for('action_candidatures') }}">
+    <input type="hidden" name="_jeton" value="{{ jeton }}">
+    <input type="hidden" name="retour" value="{{ request.full_path }}">
+    <div class="actions" style="margin:0 0 12px">
+      <button name="action" value="approuver">Approuver la sélection</button>
+      <button class="secondaire" name="action" value="ignorer">Écarter la sélection</button>
+      <button class="secondaire" name="action" value="brouillon">Remettre en brouillon</button>
+      <button class="secondaire" name="action" value="approuver_tout" onclick="return confirm('Approuver tous les brouillons sans les relire ?')">Approuver tous les brouillons</button>
+    </div>
+    <div class="tableau"><table>
+      <tr><th><input type="checkbox" onclick="document.querySelectorAll('input[name=ids]').forEach(c => c.checked = this.checked)"></th>
+        <th>#</th><th>Entreprise</th><th>Poste</th><th>Destinataire</th><th>Statut</th><th>Envoyée le</th></tr>
+      {% for c in lignes %}
+        <tr>
+          <td><input type="checkbox" name="ids" value="{{ c.id }}"></td>
+          <td><a href="{{ url_for('candidature', id_=c.id) }}">{{ c.id }}</a></td>
+          <td><a href="{{ url_for('candidature', id_=c.id) }}">{{ c.entreprise }}</a><div class="etiquette">{{ c.ville or '' }}</div></td>
+          <td>{% if c.offre_id %}{{ c.titre_offre }} <span class="etiquette">offre</span>{% else %}{{ METIERS[c.metier].titre if c.metier in METIERS else '' }} <span class="etiquette">spontanée</span>{% endif %}</td>
+          <td>{{ c.email }}</td>
+          <td>{{ pastille(c.statut) }}{% if c.erreur %}<div class="etiquette">{{ c.erreur | truncate(60) }}</div>{% endif %}</td>
+          <td>{{ (c.date_envoi or '')[:16] | replace('T', ' ') }}</td>
+        </tr>
+      {% else %}<tr><td colspan="7">Aucune candidature : préparez-en depuis « Offres d'emploi » ou « Entreprises & e-mails RH ».</td></tr>{% endfor %}
+    </table></div>
+  </form>
+</div>
+{% endblock %}

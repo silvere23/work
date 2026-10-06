@@ -38,6 +38,7 @@ se postule que sur un site.
 | Produire des PDF                    | `fpdf2`                                                         |
 | Envoyer des e-mails                 | `smtplib` / `email` inclus dans la bibliothèque standard        |
 | Suivre les candidatures             | `sqlite3` inclus : une base locale, sans serveur                |
+| Interface graphique                 | `Flask` : application web locale, ouverte dans le navigateur    |
 
 Python est le langage de référence pour le scraping, l'automatisation et l'IA : tout tient dans un seul
 langage, multiplateforme (Windows, macOS, Linux), facile à lire et à modifier.
@@ -53,7 +54,18 @@ source .venv/bin/activate          # Windows : .venv\Scripts\activate
 pip install -e ".[dns]"            # ajoutez ",ia" pour la rédaction par Claude : ".[dns,ia]"
 ```
 
-## Démarrage rapide
+## Interface graphique
+
+```bash
+autopostule interface          # ou double-clic sur lancer_interface.bat (Windows)
+```
+
+L'application s'ouvre dans votre navigateur (adresse `http://127.0.0.1:8765`, accessible uniquement depuis votre
+ordinateur) : profil et type de poste, import du CV, CV structuré avec aperçu, recherche d'offres et d'entreprises,
+recherche des e-mails RH, relecture des candidatures (message, lettre, CV adapté en PDF), essai et envoi, avec le
+journal des opérations en direct. Tout ce qui suit est aussi faisable en ligne de commande.
+
+## Démarrage rapide (ligne de commande)
 
 ```bash
 autopostule init                   # crée config.yaml, .env et le dossier cv/
@@ -90,7 +102,7 @@ autopostule auto -m administrateur_systeme -r hauts-de-france -t CDI
 
 | Document                                       | Contenu                                                     |
 |------------------------------------------------|-------------------------------------------------------------|
-| [docs/GUIDE.md](docs/GUIDE.md)                 | Guide pas à pas : clés API, offres, CV adapté, envoi, Gmail/Outlook |
+| [docs/GUIDE.md](docs/GUIDE.md)                 | Guide pas à pas : interface graphique, clés API, offres, CV adapté, envoi, Gmail/Outlook |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Référence complète de `config.yaml`, `cv.yaml` et `.env`   |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | Fonctionnement interne, modules, base de données, extension |
 | [docs/LEGAL.md](docs/LEGAL.md)                 | RGPD, CNIL, plateformes, bonnes pratiques : à lire avant d'envoyer |

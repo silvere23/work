@@ -10,6 +10,11 @@ autopostule/
 ├── cv_adapte.py      # CV structuré (cv.yaml) -> CV PDF adapté à une offre
 ├── ia.py             # appel à Claude (lettres, accroche du CV)
 ├── pdfutil.py        # mise en page PDF commune (polices Unicode, translittération)
+├── interface/        # interface web locale (Flask) : `autopostule interface`
+│   ├── __init__.py   # routes, lecture/écriture de config.yaml et .env, jeton anti-CSRF
+│   ├── taches.py     # opérations longues en arrière-plan, journal capturé par fil d'exécution
+│   ├── templates/    # pages HTML (Jinja2)
+│   └── static/       # feuille de style (thème clair / sombre)
 ├── config.py         # lecture de config.yaml + .env, valeurs par défaut
 ├── referentiel.py    # régions, départements, métiers, codes NAF, tranches d'effectif
 ├── cv.py             # extraction du texte du CV, coordonnées, compétences, adéquation métier
@@ -160,6 +165,21 @@ arrêt immédiat ; 3 erreurs consécutives → arrêt.
 | nouvelle source d'offres     | classe avec `nom` et `rechercher(requete, zones, contrats, jours, limite)` produisant des `Offre`, branchée dans `cli._sources` |
 | autre style de lettre        | `lettre.dossier_modeles` (modèles Jinja2 personnels)                    |
 
+## Interface graphique
+
+`interface.creer_app` construit une application Flask qui réutilise les fonctions de la ligne de commande
+(`rechercher`, `scanner`, `generer`, `rechercher_offres`, `preparer_offres`, `envoyer_candidatures`).
+
+- **Sécurité** : écoute sur 127.0.0.1 uniquement ; jeton secret aléatoire exigé sur chaque POST (un site
+  malveillant ouvert dans le navigateur ne peut pas déclencher d'envoi) ; `/fichier` ne sert que des fichiers
+  situés dans le dossier de travail ; les secrets ne sont jamais réaffichés.
+- **Tâches de fond** (`taches.Gestionnaire`) : une opération à la fois, exécutée dans un fil dédié ;
+  `sys.stdout` est remplacé par un aiguilleur qui envoie les `print` de ce fil dans le journal de la tâche
+  (`/taches/<id>.json`, interrogé chaque seconde par la page).
+- **Réglages** : le formulaire réécrit `config.yaml` (les commentaires du modèle disparaissent) et met à jour
+  les clés de `.env` en conservant les autres lignes ; les nouveaux secrets sont actifs immédiatement.
+- **Dossier de travail** mémorisé dans `~/.autopostule.json`.
+
 ## Tests
 
 `tests/test_unitaires.py` couvre le référentiel, l'analyse du CV, l'extraction et le classement des adresses,
@@ -169,6 +189,9 @@ les mots-clés, le CV adapté, les lettres sur offre et la migration de la base.
 `tests/test_offres_integration.py` déroule le parcours « offres » complet via la CLI contre de fausses API
 France Travail, Adzuna et SIRENE et un faux SMTP (paramètres envoyés, filtres, doublons, adresse RH, dossier
 à déposer, CV adapté joint, statuts).
+`tests/test_interface.py` parcourt l'interface avec le client de test Flask : choix du dossier, profil, import
+du CV, secrets, CV structuré et aperçu, ajout d'une offre, préparation en tâche de fond, approbation, essai et
+envoi (faux SMTP), jeton obligatoire, accès aux fichiers limité au dossier, blocage des valeurs d'exemple.
 `tests/test_integration.py` déroule le pipeline complet contre un faux site web et une fausse API locale
 (robots.txt, liens externes ignorés), un faux SMTP (plafond, exclusions, pas de doublon) et un faux serveur
 Claude (forme exacte de la requête).

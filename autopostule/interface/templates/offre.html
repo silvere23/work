@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import statut as pastille with context %}
+{% block titre %}{{ titre }}{% endblock %}
+{% block contenu %}
+<p><a href="{{ url_for('offres') }}">← Offres</a></p>
+<h1>{{ titre }}</h1>
+<p class="sous-titre">{{ o.entreprise or 'Entreprise non précisée' }}{% if o.ville %} · {{ o.ville }}{% endif %}
+  · {{ CONTRATS.get(o.type_contrat, o.type_contrat or 'contrat non précisé') }}{% if o.salaire %} · {{ o.salaire }}{% endif %}
+  · {{ o.source }} · {{ pastille(ligne.statut) }}</p>
+
+<div class="grille-2">
+  <div class="carte">
+    <h2>Adéquation avec votre CV</h2>
+    <p class="etiquette">Compétences demandées que vous avez</p>
+    {% for m in presentes %}<span class="tag">{{ m }}</span>{% else %}<p>-</p>{% endfor %}
+    <p class="etiquette" style="margin-top:12px">Compétences demandées absentes de votre CV (jamais ajoutées)</p>
+    {% for m in absentes %}<span class="tag absent">{{ m }}</span>{% else %}<p>-</p>{% endfor %}
+  </div>
+  <div class="carte">
+    <h2>Candidature</h2>
+    <p>E-mail de candidature : <strong>{{ ligne.email or 'non indiqué' }}</strong></p>
+    {% if candidature %}
+      <p>Candidature par e-mail : <a href="{{ url_for('candidature', id_=candidature.id) }}">#{{ candidature.id }}</a> {{ pastille(candidature.statut) }}</p>
+    {% elif ligne.statut == 'nouvelle' %}
+      <p>Pas encore préparée : utilisez « Préparer les nouvelles offres » sur la page Offres.</p>
+    {% endif %}
+    {% if fichiers %}<p>Documents :</p><ul>{% for f in fichiers %}<li><a href="{{ url_for('fichier', chemin=f) }}" target="_blank">{{ f.name }}</a></li>{% endfor %}</ul>{% endif %}
+    <div class="actions">
+      {% if o.url %}<a class="bouton secondaire" href="{{ o.url }}" target="_blank" rel="noopener">Ouvrir l'offre</a>{% endif %}
+      {% if ligne.statut == 'a_postuler_sur_site' %}
+        <form method="post" action="{{ url_for('statut_offre', id_=o.id) }}"><input type="hidden" name="_jeton" value="{{ jeton }}">
+          <button name="statut" value="postulee_sur_site">J'ai postulé sur le site</button></form>
+      {% endif %}
+      {% if ligne.statut not in ('ignoree', 'postulee', 'postulee_sur_site') %}
+        <form method="post" action="{{ url_for('statut_offre', id_=o.id) }}"><input type="hidden" name="_jeton" value="{{ jeton }}">
+          <button class="secondaire" name="statut" value="ignoree">Écarter</button></form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<div class="carte"><h2>Description</h2><pre class="lettre">{{ o.description }}</pre></div>
+{% endblock %}
