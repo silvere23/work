@@ -76,9 +76,16 @@ class Config:
         return manquants
 
     def valeurs_exemple(self) -> list[str]:
-        """Champs du profil encore remplis avec les valeurs fictives du fichier d'exemple (Jean Dupont...)."""
-        return [cle for cle, valeur in VALEURS_EXEMPLE.items()
-                if str(self.profil.get(cle) or "").strip().lower() == valeur.lower()]
+        """Champs du profil encore remplis avec des valeurs fictives (modèle) ou des textes à remplacer
+        (« TON ADRESSE », « .../in/TON-PROFIL », « XXX »...)."""
+        champs = []
+        for cle, valeur in self.profil.items():
+            texte = str(valeur or "").strip().lower()
+            if not texte:
+                continue
+            if texte == VALEURS_EXEMPLE.get(cle, "\0").lower() or any(m in texte for m in MARQUEURS_A_REMPLACER):
+                champs.append(cle)
+        return champs
 
 
 # Valeurs fictives de config.exemple.yaml : ne doivent jamais partir dans une candidature.
@@ -87,6 +94,11 @@ VALEURS_EXEMPLE = {
     "telephone": "06 12 34 56 78",
     "adresse": "12 rue de l'Exemple",
 }
+
+
+# Textes « à remplacer » laissés dans les exemples de commande ou de documentation.
+MARQUEURS_A_REMPLACER = ("ton adresse", "ton-profil", "ton profil", "votre adresse", "votre-profil", "xxx",
+                         "a completer", "à compléter")
 
 
 def _defauts() -> dict:

@@ -303,3 +303,10 @@ def test_convertir_prefere_etablissement_local():
     e = convertir(brut, "devops")
     assert (e["ville"], e["code_postal"], e["departement"]) == ("NANTERRE", "92000", "92")
     assert convertir(BRUT, "devops")["ville"] == "LILLE"  # sans établissement correspondant : le siège
+
+
+def test_textes_a_remplacer_detectes(tmp_path):
+    cfg = depuis_dict({"profil": {"prenom": "Silvère", "nom": "Tchoudji", "email": "s@gmail.com",
+                                  "telephone": "07 50 00 19 16", "adresse": "TON ADRESSE",
+                                  "linkedin": "https://www.linkedin.com/in/TON-PROFIL"}}, tmp_path)
+    assert sorted(cfg.valeurs_exemple()) == ["adresse", "linkedin"]
