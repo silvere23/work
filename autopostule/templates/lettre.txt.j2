@@ -1,0 +1,22 @@
+{{ profil.prenom }} {{ profil.nom }}
+{% if profil.adresse %}{{ profil.adresse }}
+{% endif %}{% if profil.code_postal or profil.ville %}{{ profil.code_postal }} {{ profil.ville }}
+{% endif %}{{ profil.telephone }} - {{ profil.email }}
+{% if profil.linkedin %}{{ profil.linkedin }}
+{% endif %}
+{{ entreprise.nom }}
+À l'attention du service Recrutement
+{% if entreprise.adresse %}{{ entreprise.adresse }}
+{% endif %}
+{{ profil.ville or "" }}{% if profil.ville %}, le {% else %}Le {% endif %}{{ date }}
+
+Objet : Candidature spontanée - {{ titre }}{% if profil.type_contrat %} ({{ profil.type_contrat }}){% endif %}
+
+
+Madame, Monsieur,
+
+{{ corps }}
+
+Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.
+
+{{ profil.prenom }} {{ profil.nom }}
