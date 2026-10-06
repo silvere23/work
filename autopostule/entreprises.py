@@ -6,6 +6,7 @@ API gratuite, sans clé, limitée à ~7 requêtes/seconde. Les données provienn
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Iterator
@@ -51,15 +52,24 @@ class CriteresRecherche:
 def convertir(resultat: dict, cle_metier: str) -> dict:
     """Transforme un résultat brut de l'API en enregistrement pour la base locale."""
     siege = resultat.get("siege") or {}
+    # L'API sélectionne l'entreprise grâce à un établissement situé dans la zone demandée, mais renvoie aussi
+    # le siège (parfois dans une autre région) : on retient l'établissement local, c'est là que l'on postule.
+    local = next((e for e in resultat.get("matching_etablissements") or [] if e.get("libelle_commune")), None)
+    lieu = local or siege
+    code_postal = lieu.get("code_postal") or ""
+    if not code_postal and lieu.get("adresse"):
+        if m := re.search(r"\b(\d{5})\b", lieu["adresse"]):
+            code_postal = m.group(1)
+    departement = lieu.get("departement") or (str(lieu.get("commune") or "")[:2] if lieu.get("commune") else "")
     return {
         "siren": resultat.get("siren"),
         "nom": resultat.get("nom_complet") or resultat.get("nom_raison_sociale") or "",
         "naf": resultat.get("activite_principale") or siege.get("activite_principale"),
-        "adresse": siege.get("adresse"),
-        "code_postal": siege.get("code_postal"),
-        "ville": siege.get("libelle_commune"),
-        "departement": siege.get("departement"),
-        "region": siege.get("region"),
+        "adresse": lieu.get("adresse"),
+        "code_postal": code_postal,
+        "ville": lieu.get("libelle_commune"),
+        "departement": departement or code_postal[:2],
+        "region": lieu.get("region") or siege.get("region"),
         "tranche_effectif": resultat.get("tranche_effectif_salarie") or siege.get("tranche_effectif_salarie"),
         "categorie": resultat.get("categorie_entreprise"),
         "nature_juridique": resultat.get("nature_juridique"),

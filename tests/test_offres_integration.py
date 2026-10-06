@@ -119,6 +119,9 @@ def projet(tmp_path, monkeypatch):
     config = (tmp_path / "config.yaml").read_text(encoding="utf-8")
     config = config.replace('fichier: "cv/mon_cv.pdf"', 'fichier: "cv/mon_cv.txt"')
     config = config.replace('regions: ["ile-de-france"]', 'regions: ["hauts-de-france"]')
+    config = config.replace('email: "jean.dupont@example.com"', 'email: "jean.dupont@mail.fr"')
+    config = config.replace('telephone: "06 12 34 56 78"', 'telephone: "06 01 02 03 04"')
+    config = config.replace("adresse: \"12 rue de l'Exemple\"", 'adresse: "3 rue des Tests"')
     config = config.replace('ville: "Paris"', 'ville: "Lille"').replace('code_postal: "75011"', 'code_postal: "59000"')
     (tmp_path / "config.yaml").write_text(config, encoding="utf-8")
     (tmp_path / ".env").write_text("AUTOPOSTULE_SMTP_PASSWORD=x\nFRANCE_TRAVAIL_CLIENT_ID=id\n"
@@ -138,7 +141,9 @@ def test_parcours_offres(projet, api, monkeypatch):
     assert (projet / "cv" / "cv.yaml").exists()
     # on utilise le CV structuré d'exemple (parcours complet) pour le test
     from autopostule.cv_adapte import EXEMPLE_CV
-    (projet / "cv" / "cv.yaml").write_text(EXEMPLE_CV.read_text(encoding="utf-8"), encoding="utf-8")
+    parcours = EXEMPLE_CV.read_text(encoding="utf-8").replace("Entreprise A", "Nordis").replace(
+        "Entreprise B", "Helpline").replace("Lycée Exemple", "Lycée Baggio")
+    (projet / "cv" / "cv.yaml").write_text(parcours, encoding="utf-8")
 
     # 1. recherche : CDI uniquement, offres de 7 jours, Hauts-de-France
     assert cli.main(["-c", cfg, "offres", "rechercher", "-m", "sysadmin", "-t", "CDI", "-j", "5"]) == 0
@@ -210,3 +215,12 @@ def test_ajout_manuel_depuis_fichier(projet, tmp_path):
 def test_contrat_invalide(projet, capsys):
     assert cli.main(["-c", str(projet / "config.yaml"), "offres", "rechercher", "-t", "CDX"]) == 2
     assert "Type de contrat inconnu" in capsys.readouterr().err
+
+
+def test_envoi_bloque_avec_profil_exemple(projet, capsys):
+    cfg = projet / "config.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace('email: "jean.dupont@mail.fr"',
+                                                           'email: "jean.dupont@example.com"'), encoding="utf-8")
+    assert cli.main(["-c", str(cfg), "envoyer", "--oui"]) == 1
+    assert "valeurs d'exemple (email)" in capsys.readouterr().out
+    assert FauxSMTP.envoyes == []

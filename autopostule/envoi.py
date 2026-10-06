@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import mimetypes
 import random
+import re
 import smtplib
 import ssl
 import time
@@ -19,7 +20,8 @@ ERREURS_FATALES = (smtplib.SMTPAuthenticationError, smtplib.SMTPSenderRefused)
 
 
 def nom_fichier(texte: str) -> str:
-    return "_".join(normaliser(texte).split()) or "document"
+    """Nom de fichier sûr : « TIBCO (TIBCO) » -> « tibco_tibco »."""
+    return "_".join(re.sub(r"[^a-z0-9]+", " ", normaliser(texte)).split()) or "document"
 
 
 def construire_message(config, destinataire: str, objet: str, corps: str,

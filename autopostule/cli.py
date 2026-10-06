@@ -127,6 +127,13 @@ def cmd_cv(args) -> int:
     manquants = config.verifier_profil()
     if manquants:
         print(f"\n⚠ Champs du profil à compléter dans config.yaml : {', '.join(manquants)}")
+    exemples = config.valeurs_exemple()
+    if exemples:
+        print(f"\n⚠ Valeurs d'exemple à remplacer dans config.yaml (profil) : {', '.join(exemples)}"
+              + (f"\n  Détecté dans votre CV : {analyse.email or ''} {analyse.telephone or ''}".rstrip()
+                 if analyse.email or analyse.telephone else ""))
+    if not config.profil.get("genre"):
+        print("\nAstuce : indiquez genre: \"M\" ou \"F\" dans config.yaml pour éviter « motivé(e) » dans les lettres.")
     return 0
 
 
@@ -493,6 +500,11 @@ def cmd_envoyer(args) -> int:
     manquants = config.verifier_profil()
     if manquants:
         print(f"Profil incomplet ({', '.join(manquants)}) : complétez config.yaml avant d'envoyer.")
+        return 1
+    exemples = config.valeurs_exemple()
+    if exemples and not args.test:
+        print(f"Envoi bloqué : le profil contient encore des valeurs d'exemple ({', '.join(exemples)}). "
+              f"Corrigez config.yaml, puis régénérez les brouillons (`autopostule ignorer ...` puis `generer`).")
         return 1
     base = _base(config)
     if not args.test and not args.oui:

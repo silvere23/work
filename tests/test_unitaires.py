@@ -258,3 +258,48 @@ def test_config_ansi_et_bom(tmp_path):
     assert charger(fichier).profil["prenom"] == "Silvère"
     fichier.write_bytes("\ufeffprofil:\n  prenom: Silvère\n".encode("utf-8"))
     assert charger(fichier).profil["prenom"] == "Silvère"
+
+
+def test_valeurs_exemple_detectees(tmp_path):
+    cfg = depuis_dict({"profil": {"prenom": "Silvère", "nom": "Tchoudji", "email": "jean.dupont@example.com",
+                                  "telephone": "06 12 34 56 78"}}, tmp_path)
+    assert cfg.valeurs_exemple() == ["email", "telephone"]
+    assert depuis_dict({"profil": {"email": "moi@gmail.com"}}, tmp_path).valeurs_exemple() == []
+
+
+def test_cv_structure_exemple_ignore():
+    from autopostule import cv_adapte
+
+    exemple = cv_adapte.charger(cv_adapte.EXEMPLE_CV)
+    assert cv_adapte.est_exemple(exemple)
+    exemple["experiences"] = [{"poste": "Admin", "entreprise": "Ma vraie boîte", "missions": ["x"]}]
+    exemple["formations"] = [{"diplome": "BTS", "etablissement": "Lycée Hoche"}]
+    assert not cv_adapte.est_exemple(exemple)
+
+
+def test_nom_fichier():
+    from autopostule.envoi import nom_fichier
+
+    assert nom_fichier("TIBCO (TIBCO)") == "tibco_tibco"
+    assert nom_fichier("WE+") == "we"
+
+
+def test_verifier_site_domaine_et_marque():
+    # domaine = nom complet de l'entreprise, titre qui n'en cite qu'un mot
+    page = Page("https://www.mca-bureautique.fr/", 200, "<title>MCA - Copieurs et informatique</title>")
+    assert verifier_site(page, "MCA BUREAUTIQUE", "999999999") == "domaine"
+    # domaine = premier mot distinctif du nom
+    page = Page("https://www.oracle.com/fr/", 200, "<title>Oracle France | Cloud</title>")
+    assert verifier_site(page, "ORACLE GLOBAL SERVICES FRANCE SARL", "999999999") == "marque"
+    # premier mot trop générique : refusé
+    page = Page("https://www.informatique.com/", 200, "<title>Informatique.com</title>")
+    assert verifier_site(page, "INFORMATIQUE CONSEIL PARIS", "999999999") is None
+
+
+def test_convertir_prefere_etablissement_local():
+    brut = {**BRUT, "matching_etablissements": [
+        {"siret": "12345678900021", "libelle_commune": "NANTERRE", "commune": "92050",
+         "adresse": "10 AVENUE DU TEST 92000 NANTERRE"}]}
+    e = convertir(brut, "devops")
+    assert (e["ville"], e["code_postal"], e["departement"]) == ("NANTERRE", "92000", "92")
+    assert convertir(BRUT, "devops")["ville"] == "LILLE"  # sans établissement correspondant : le siège

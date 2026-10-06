@@ -43,7 +43,11 @@ class Atelier:
                 journal(f"(CV non trouvé : {config.fichier_cv} - lettres générées sans les compétences du CV)")
         self.analyse = analyse
         self.cv_structure = cv_adapte.charger(config.fichier_cv_structure) if config["cv_adapte"].get("actif") else None
-        if config["cv_adapte"].get("actif") and self.cv_structure is None:
+        if self.cv_structure is not None and cv_adapte.est_exemple(self.cv_structure):
+            journal(f"⚠ {config.fichier_cv_structure} contient encore le parcours d'exemple (« Entreprise A »...) : "
+                    f"il est ignoré pour ne pas envoyer de fausses expériences. Remplacez-le par votre parcours.")
+            self.cv_structure = None
+        elif config["cv_adapte"].get("actif") and self.cv_structure is None:
             journal(f"(CV structuré absent : {config.fichier_cv_structure} - le CV d'origine sera joint tel quel. "
                     f"Créez-le avec `autopostule cv-structure`.)")
         self.redacteur = Redacteur(config["lettre"].get("modele_ia") or "claude-opus-5-5")

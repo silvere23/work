@@ -41,8 +41,24 @@ def slugs_candidats(nom: str) -> list[str]:
     return [c for c in dict.fromkeys(candidats) if 2 < len(c) <= 63]
 
 
+# Mots trop génériques pour identifier une entreprise à eux seuls (« informatique.com » n'est pas « Informatique Conseil »).
+MOTS_GENERIQUES = {
+    "informatique", "services", "service", "solutions", "solution", "conseil", "conseils", "systemes", "systeme",
+    "technologies", "technology", "tech", "digital", "numerique", "data", "cloud", "network", "networks",
+    "reseau", "reseaux", "consulting", "group", "international", "europe", "software", "logiciels", "telecom",
+    "web", "net", "info", "infra", "it", "ingenierie", "engineering", "partners", "partenaires", "global",
+}
+
+
 def verifier_site(page: Page, nom: str, siren: str) -> str | None:
-    """Confiance que la page appartient bien à l'entreprise : 'siren', 'nom' ou None."""
+    """Confiance que la page appartient bien à l'entreprise : 'siren', 'nom', 'domaine', 'marque' ou None.
+
+    - siren   : le SIREN figure sur la page (preuve la plus forte) ;
+    - nom     : tous les mots distinctifs du nom sont dans le titre / l'en-tête ;
+    - domaine : le domaine est exactement le nom de l'entreprise (mcabureautique.fr) et le titre en cite un mot ;
+    - marque  : le domaine est le premier mot du nom, distinctif (oracle.com pour « Oracle Global Services »),
+                et ce mot est dans le titre.
+    """
     texte = page.html
     # SIREN écrit « 123456789 », « 123 456 789 » ou inclus dans un SIRET / n° de TVA (FR12 123456789)
     if siren and re.search(r"(?<!\d)" + r"[\s. ]?".join(siren) + r"(?:[\s. ]?\d{5})?(?!\d)", texte):
@@ -53,6 +69,14 @@ def verifier_site(page: Page, nom: str, siren: str) -> str | None:
     mots = [m for m in re.split(r"[^a-z0-9]+", normaliser(nom)) if m and m not in FORMES_JURIDIQUES]
     if mots and all(m in titre or m in entete for m in mots):
         return "nom"
+    if mots:
+        etiquette = domaine_racine(urlsplit(page.url).netloc).split(".")[0]
+        visible = f"{titre} {entete}"
+        if etiquette in {"".join(mots), "-".join(mots)} and any(m in visible for m in mots):
+            return "domaine"
+        premier = mots[0]
+        if etiquette == premier and len(premier) >= 5 and premier not in MOTS_GENERIQUES and premier in titre:
+            return "marque"
     return None
 
 

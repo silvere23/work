@@ -75,6 +75,19 @@ class Config:
         manquants = [c for c in ("prenom", "nom", "email", "telephone") if not str(self.profil.get(c, "")).strip()]
         return manquants
 
+    def valeurs_exemple(self) -> list[str]:
+        """Champs du profil encore remplis avec les valeurs fictives du fichier d'exemple (Jean Dupont...)."""
+        return [cle for cle, valeur in VALEURS_EXEMPLE.items()
+                if str(self.profil.get(cle) or "").strip().lower() == valeur.lower()]
+
+
+# Valeurs fictives de config.exemple.yaml : ne doivent jamais partir dans une candidature.
+VALEURS_EXEMPLE = {
+    "email": "jean.dupont@example.com",
+    "telephone": "06 12 34 56 78",
+    "adresse": "12 rue de l'Exemple",
+}
+
 
 def _defauts() -> dict:
     """Valeurs par défaut du fichier d'exemple, sans les données personnelles fictives (Jean Dupont...)."""

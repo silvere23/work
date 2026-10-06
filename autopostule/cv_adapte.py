@@ -47,6 +47,16 @@ def charger(chemin: Path) -> dict | None:
     return donnees
 
 
+MARQUEURS_EXEMPLE = {"entreprise a", "entreprise b", "lycee exemple"}
+
+
+def est_exemple(cv: dict) -> bool:
+    """Vrai si le CV structuré contient encore le parcours fictif du modèle (« Entreprise A », « Lycée Exemple »)."""
+    noms = [normaliser(str(e.get("entreprise") or "")) for e in cv.get("experiences") or []]
+    noms += [normaliser(str(f.get("etablissement") or "")) for f in cv.get("formations") or []]
+    return any(n in MARQUEURS_EXEMPLE for n in noms)
+
+
 def toutes_competences(cv: dict) -> list[str]:
     return [c for liste in (cv.get("competences") or {}).values() for c in liste or []]
 
