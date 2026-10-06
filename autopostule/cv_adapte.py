@@ -37,7 +37,9 @@ def charger(chemin: Path) -> dict | None:
     chemin = Path(chemin)
     if not chemin.exists():
         return None
-    donnees = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+    from .config import lire_yaml
+
+    donnees = lire_yaml(chemin)
     donnees.setdefault("competences", {})
     donnees.setdefault("experiences", [])
     if isinstance(donnees["competences"], list):

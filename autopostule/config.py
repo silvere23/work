@@ -98,6 +98,34 @@ def contrats_vises(config: "Config") -> list[str]:
     return contrats_valides(valeurs)
 
 
+CONSEIL_WINDOWS = (
+    "Astuce Windows : entre guillemets doubles, les « \\ » d'un chemin sont mal interprétés. Écrivez le chemin "
+    "entre guillemets simples ('C:\\Users\\vous\\Downloads\\cv.pdf'), avec des « / » "
+    "(\"C:/Users/vous/Downloads/cv.pdf\"), ou copiez le fichier dans le dossier cv/."
+)
+
+
+def lire_yaml(chemin: Path) -> dict:
+    """Lit un fichier YAML (UTF-8, UTF-8 avec BOM ou ANSI Windows) avec un message d'erreur compréhensible."""
+    brut = Path(chemin).read_bytes()
+    try:
+        texte = brut.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        texte = brut.decode("cp1252", errors="replace")  # fichier enregistré en « ANSI » par le Bloc-notes
+    try:
+        return yaml.safe_load(texte) or {}
+    except yaml.YAMLError as erreur:
+        position = getattr(erreur, "problem_mark", None)
+        ligne = f" (ligne {position.line + 1}, colonne {position.column + 1})" if position else ""
+        extrait = ""
+        if position:
+            lignes = texte.splitlines()
+            if position.line < len(lignes):
+                extrait = f"\n  > {lignes[position.line].strip()}"
+        conseil = f"\n{CONSEIL_WINDOWS}" if "\\" in extrait or "escape" in str(erreur) else ""
+        raise ErreurConfig(f"Le fichier {chemin} est mal écrit{ligne}.{extrait}{conseil}") from None
+
+
 def charger(chemin: str | Path = "config.yaml") -> Config:
     chemin = Path(chemin).resolve()
     if not chemin.exists():
@@ -109,7 +137,7 @@ def charger(chemin: str | Path = "config.yaml") -> Config:
     except ImportError:  # pragma: no cover - python-dotenv est une dépendance
         pass
     defauts = _defauts()
-    utilisateur = yaml.safe_load(chemin.read_text(encoding="utf-8")) or {}
+    utilisateur = lire_yaml(chemin)
     return Config(_fusion(defauts, utilisateur), chemin)
 
 

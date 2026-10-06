@@ -14,6 +14,29 @@ pip install -e ".[dns]"            # ".[dns,ia]" pour activer la rédaction par 
 
 `dns` permet de vérifier qu'un domaine accepte bien des e-mails (enregistrement MX) avant d'écrire.
 
+### Sous Windows (PowerShell)
+
+```powershell
+winget install Python.Python.3.13          # ou l'installateur de python.org, case « Add python.exe to PATH » cochée
+# fermez puis rouvrez PowerShell
+cd C:\Users\vous\work
+& "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe" -m venv .venv   # ou : python -m venv .venv
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # une seule fois, autorise l'activation
+.venv\Scripts\Activate.ps1                            # « (.venv) » apparaît en début de ligne
+pip install -e ".[dns,dev]"
+pytest
+```
+
+| Problème Windows                                         | Solution                                                    |
+|----------------------------------------------------------|-------------------------------------------------------------|
+| `Python est introuvable ; exécutez sans arguments…`      | Python absent du PATH : utilisez le chemin complet ci-dessus, ou désactivez les alias `python.exe` / `python3.exe` (Paramètres → Applications → Paramètres avancés → Alias d'exécution d'application) |
+| `l'exécution de scripts est désactivée sur ce système`   | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, ou utilisez `cmd` puis `.venv\Scripts\activate.bat` |
+| `source` n'est pas reconnu                               | commande Linux/macOS : sous Windows, `.venv\Scripts\Activate.ps1` |
+| `config.yaml … est mal écrit` avec un chemin `C:\…`      | chemin entre guillemets simples `'C:\Users\vous\Downloads\cv.pdf'`, ou copiez le CV dans `cv\` |
+
+À chaque nouvelle fenêtre PowerShell : `cd` dans le dossier du projet puis `.venv\Scripts\Activate.ps1`.
+Le dossier « Téléchargements » de l'Explorateur s'appelle en réalité `C:\Users\vous\Downloads`.
+
 ## 2. Initialisation
 
 ```bash

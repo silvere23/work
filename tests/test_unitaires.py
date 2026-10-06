@@ -230,3 +230,25 @@ def test_elision(tmp_path):
     for siren in range(20):
         lettre = gen.generer({**convertir(BRUT, "devops"), "siren": str(siren), "tranche_effectif": "21"}, "devops")
         assert "de Acme" not in lettre.lettre
+
+
+def test_config_chemin_windows_mal_echappe(tmp_path):
+    from autopostule.config import ErreurConfig, charger
+
+    fichier = tmp_path / "config.yaml"
+    fichier.write_text('cv:\n  fichier: "C:\\Users\\moi\\Downloads\\CV.pdf"\n', encoding="utf-8")
+    with pytest.raises(ErreurConfig) as erreur:
+        charger(fichier)
+    assert "ligne 2" in str(erreur.value) and "guillemets simples" in str(erreur.value)
+    fichier.write_text("cv:\n  fichier: 'C:\\Users\\moi\\Downloads\\CV silvère.pdf'\n", encoding="utf-8")
+    assert charger(fichier)["cv"]["fichier"] == "C:\\Users\\moi\\Downloads\\CV silvère.pdf"
+
+
+def test_config_ansi_et_bom(tmp_path):
+    from autopostule.config import charger
+
+    fichier = tmp_path / "config.yaml"
+    fichier.write_bytes("profil:\n  prenom: Silvère\n".encode("cp1252"))
+    assert charger(fichier).profil["prenom"] == "Silvère"
+    fichier.write_bytes("\ufeffprofil:\n  prenom: Silvère\n".encode("utf-8"))
+    assert charger(fichier).profil["prenom"] == "Silvère"

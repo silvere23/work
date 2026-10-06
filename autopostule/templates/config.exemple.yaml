@@ -24,6 +24,8 @@ profil:
 
 cv:
   fichier: "cv/mon_cv.pdf"  # PDF, DOCX, TXT ou MD - joint à chaque e-mail
+  # Windows : copiez le CV dans le dossier cv/ ou écrivez le chemin entre guillemets SIMPLES :
+  #   fichier: 'C:\Users\vous\Downloads\mon cv.pdf'   (le dossier réel est Downloads, pas Téléchargements)
 
 recherche:
   # Métiers ciblés : administrateur_reseau, administrateur_systeme,
